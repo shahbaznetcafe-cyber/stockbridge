@@ -1,16 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
@@ -31,4 +25,111 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+model Store {
+  id              String   @id @default(cuid())
+  shop            String   @unique
+  myshopifyDomain String?
+  currency        String   @default("USD")
+  timezone        String   @default("America/New_York")
+  installedAt     DateTime @default(now())
+  uninstalledAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  subscriptionStatus String  @default("trial")
+  planId             String?
+  trialEndsAt        DateTime?
+  products        Product[]
+  suppliers       Supplier[]
+  notificationSettings NotificationSetting[]
+}
+
+model Product {
+  id              String   @id
+  storeId         String
+  title           String
+  vendor          String?
+  productType     String?
+  status          String   @default("active")
+  sku             String?
+  barcode         String?
+  inventoryQty    Int      @default(0)
+  inventoryCost   Float?
+  price           Float?
+  compareAtPrice  Float?
+  imageUrl        String?
+  isTracking      Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  leadTimeDays    Int      @default(14)
+  safetyStock     Int      @default(0)
+  reorderPoint    Int?
+  reorderQty      Int?
+  salesVelocity   Float    @default(0)
+  daysOfSupply    Float    @default(0)
+  lastSoldAt      DateTime?
+  totalSold30     Int      @default(0)
+  totalSold90     Int      @default(0)
+  revenueAtRisk   Float    @default(0)
+  store           Store    @relation(fields: [storeId], references: [id])
+  supplierId      String?
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  alerts          StockAlert[]
+
+  @@unique([storeId, sku])
+  @@index([storeId, status])
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  storeId     String
+  name        String
+  email       String?
+  phone       String?
+  leadTimeDays Int     @default(14)
+  moq         Int      @default(1)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  store       Store    @relation(fields: [storeId], references: [id])
+  products    Product[]
+}
+
+model StockAlert {
+  id         String   @id @default(cuid())
+  storeId    String
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  type       String
+  message    String
+  severity   String
+  isRead     Boolean  @default(false)
+  isResolved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  resolvedAt DateTime?
+}
+
+model NotificationSetting {
+  id                  String   @id @default(cuid())
+  storeId             String   @unique
+  emailEnabled        Boolean  @default(true)
+  emailRecipients     String?
+  slackEnabled        Boolean  @default(false)
+  slackWebhookUrl     String?
+  dailyDigestEnabled  Boolean  @default(true)
+  dailyDigestTime     String   @default("08:00")
+  alertTypes          String   @default("low_stock,out_of_stock,dead_stock")
+  store               Store    @relation(fields: [storeId], references: [id])
+}
+
+model JobLog {
+  id          String   @id @default(cuid())
+  storeId     String?
+  jobType     String
+  status      String
+  message     String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  error       String?
 }

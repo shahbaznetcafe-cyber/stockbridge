@@ -1,0 +1,3 @@
+# Prisma Migrate lock file
+generator_client = "prisma-client-js"
+datasource_provider = "postgresql"

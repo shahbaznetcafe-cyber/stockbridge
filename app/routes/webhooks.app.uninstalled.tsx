@@ -7,10 +7,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   console.log(`Received ${topic} webhook for ${shop}`);
 
-  // Webhook requests can trigger multiple times and after an app has already been uninstalled.
-  // If this webhook already ran, the session may have been deleted previously.
   if (session) {
     await db.session.deleteMany({ where: { shop } });
+  }
+
+  const store = await db.store.findUnique({ where: { shop } });
+  if (store) {
+    await db.store.update({
+      where: { id: store.id },
+      data: { uninstalledAt: new Date(), subscriptionStatus: "uninstalled" },
+    });
+    await db.product.deleteMany({ where: { storeId: store.id } });
+    await db.supplier.deleteMany({ where: { storeId: store.id } });
+    await db.stockAlert.deleteMany({ where: { storeId: store.id } });
+    await db.notificationSetting.deleteMany({ where: { storeId: store.id } });
   }
 
   return new Response();

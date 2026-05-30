@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: stockbridge
+    env: node
+    region: ohio
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run render-start
+    healthCheckPath: /up
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12"
+      - key: SHOPIFY_APP_URL
+        value: https://stockbridge.onrender.com
+      - key: SCOPES
+        value: read_products,write_products,read_inventory,write_inventory,read_orders
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stockbridge-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: stockbridge-redis
+          type: redis
+          property: connectionString
+      - key: SHOPIFY_API_KEY
+        sync: false
+      - key: SHOPIFY_API_SECRET
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+
+databases:
+  - name: stockbridge-db
+    plan: starter
+    region: ohio
+    databaseName: stockbridge
+    ipAllowList: []
+
+redis:
+  - name: stockbridge-redis
+    plan: starter
+    region: ohio
+    maxmemoryPolicy: allkeys-lru
