@@ -10,6 +10,7 @@
     "config:use": "shopify app config use",
     "env": "shopify app env",
     "start": "node -e \"try { require('child_process').execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' }); } catch(e) { console.log('DB setup skipped:', e.message); }\" && remix-serve ./build/server/index.js",
+    "render-start": "npm run start",
     "docker-start": "npm run start",
     "setup": "prisma generate",
     "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
