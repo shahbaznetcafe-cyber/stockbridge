@@ -21,10 +21,7 @@ services:
           name: stockbridge-db
           property: connectionString
       - key: REDIS_URL
-        fromService:
-          name: stockbridge-redis
-          type: redis
-          property: connectionString
+        sync: false
       - key: SHOPIFY_API_KEY
         sync: false
       - key: SHOPIFY_API_SECRET
@@ -38,9 +35,3 @@ databases:
     region: ohio
     databaseName: stockbridge
     ipAllowList: []
-
-redis:
-  - name: stockbridge-redis
-    plan: starter
-    region: ohio
-    maxmemoryPolicy: allkeys-lru
