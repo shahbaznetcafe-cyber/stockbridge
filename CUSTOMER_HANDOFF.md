@@ -30,6 +30,7 @@
 - Use Receive inventory after goods arrive. Partial receipts are allowed.
 - Confirm remaining quantity and receipt history update after each receipt.
 - Confirm Shopify inventory increased by the received quantity only.
+- Confirm Purchase Orders summary shows open value, open orders, due-this-week orders, overdue orders, and workflow counts.
 - Open Print or email for a purchase order.
 - Use Print or Save PDF and confirm the supplier-ready document includes supplier, totals, lines, and remaining quantities.
 - Send supplier email only after SendGrid and supplier email are configured.
@@ -49,6 +50,7 @@
 - PDF export uses the browser print dialog from the printable purchase order page.
 - Supplier PO email uses SendGrid and will show a configuration error if SendGrid is not enabled.
 - CSV export downloads the currently filtered purchase order list for customer handoff, supplier follow-up, and spreadsheet review.
+- Summary cards are calculated from the latest 50 purchase orders shown on the Purchase Orders page.
 
 ## Rollback
 

@@ -88,12 +88,13 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 7. Set reorder points, safety stock, lead time, and reorder quantities.
 8. Create a draft purchase order from reorder candidates.
 9. Mark the purchase order as sent, receive partial or full inventory into Shopify, or cancel it as the supplier workflow progresses.
-10. Open the printable purchase order document and use browser print to save a PDF.
-11. Email the purchase order to the supplier if SendGrid and supplier email are configured.
-12. Search or filter purchase orders by status, supplier, product, SKU, or PO number.
-13. Export filtered purchase orders to CSV for supplier follow-up, customer reporting, or backup.
-14. Review dashboard metrics and Inventory Alerts.
-15. Configure email or Slack notifications in Settings if the customer wants alerts.
+10. Review open purchase order value, overdue purchase orders, due-this-week count, and workflow counts.
+11. Open the printable purchase order document and use browser print to save a PDF.
+12. Email the purchase order to the supplier if SendGrid and supplier email are configured.
+13. Search or filter purchase orders by status, supplier, product, SKU, or PO number.
+14. Export filtered purchase orders to CSV for supplier follow-up, customer reporting, or backup.
+15. Review dashboard metrics and Inventory Alerts.
+16. Configure email or Slack notifications in Settings if the customer wants alerts.
 
 ## Known Production Notes
 
@@ -107,6 +108,7 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 - Purchase order PDF export uses the browser print flow from the printable purchase order page. Direct server-side PDF generation is not included yet.
 - Supplier purchase order email uses SendGrid when `SENDGRID_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and supplier email are configured.
 - Purchase order CSV export is available from the Purchase Orders page and respects the current search/status filters.
+- Purchase order summary cards show open value, open count, due-this-week count, overdue count, and workflow status counts.
 
 ## Support
 

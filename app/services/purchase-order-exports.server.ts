@@ -54,6 +54,42 @@ export function filterPurchaseOrders<T extends ExportablePurchaseOrder>(
   });
 }
 
+function startOfDay(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+}
+
+function isOpenStatus(status: string) {
+  return status !== "received" && status !== "cancelled";
+}
+
+export function calculatePurchaseOrderSummary(orders: ExportablePurchaseOrder[], now = new Date()) {
+  const today = startOfDay(now);
+  const weekEnd = new Date(today);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+
+  const openOrders = orders.filter((order) => isOpenStatus(order.status));
+  const overdueOrders = openOrders.filter((order) => {
+    if (!order.expectedDate) return false;
+    return startOfDay(new Date(order.expectedDate)) < today;
+  });
+  const dueThisWeekOrders = openOrders.filter((order) => {
+    if (!order.expectedDate) return false;
+    const expectedDate = startOfDay(new Date(order.expectedDate));
+    return expectedDate >= today && expectedDate <= weekEnd;
+  });
+
+  return {
+    totalOrders: orders.length,
+    openOrders: openOrders.length,
+    draftOrders: orders.filter((order) => order.status === "draft").length,
+    sentOrders: orders.filter((order) => order.status === "sent").length,
+    partialOrders: orders.filter((order) => order.status === "partial").length,
+    overdueOrders: overdueOrders.length,
+    dueThisWeekOrders: dueThisWeekOrders.length,
+    openOrderValue: Number(openOrders.reduce((total, order) => total + order.totalCost, 0).toFixed(2)),
+  };
+}
+
 function getReceivedQuantity(line: ExportablePurchaseOrder["lines"][number]) {
   return line.receipts.reduce((total, receipt) => total + receipt.quantity, 0);
 }

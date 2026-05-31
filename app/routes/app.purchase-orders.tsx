@@ -20,6 +20,7 @@ import { TitleBar } from "@shopify/app-bridge-react";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import {
+  calculatePurchaseOrderSummary,
   filterPurchaseOrders,
   getPurchaseOrderFilterParams,
 } from "../services/purchase-order-exports.server";
@@ -42,6 +43,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({
     ...data,
     filteredPurchaseOrders: filterPurchaseOrders(data.purchaseOrders, filters),
+    summary: calculatePurchaseOrderSummary(data.purchaseOrders),
     filters,
   });
 };
@@ -137,7 +139,7 @@ function getReceivedQuantity(receipts: Array<{ quantity: number }>) {
 }
 
 export default function PurchaseOrders() {
-  const { suppliers, reorderCandidates, purchaseOrders, filteredPurchaseOrders, filters } = useLoaderData<typeof loader>();
+  const { suppliers, reorderCandidates, purchaseOrders, filteredPurchaseOrders, summary, filters } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const actionData = fetcher.data as { success?: boolean; error?: string; message?: string } | undefined;
   const [selectedSupplierId, setSelectedSupplierId] = useState(suppliers[0]?.id || "");
@@ -223,6 +225,59 @@ export default function PurchaseOrders() {
             </Text>
           </Banner>
         )}
+
+        <InlineStack gap="300">
+          <Card>
+            <BlockStack gap="100">
+              <Text as="p" tone="subdued" variant="bodySm">
+                Open PO value
+              </Text>
+              <Text as="p" variant="headingLg">
+                {formatMoney(summary.openOrderValue)}
+              </Text>
+            </BlockStack>
+          </Card>
+          <Card>
+            <BlockStack gap="100">
+              <Text as="p" tone="subdued" variant="bodySm">
+                Open orders
+              </Text>
+              <Text as="p" variant="headingLg">
+                {summary.openOrders}
+              </Text>
+            </BlockStack>
+          </Card>
+          <Card>
+            <BlockStack gap="100">
+              <Text as="p" tone="subdued" variant="bodySm">
+                Due this week
+              </Text>
+              <Text as="p" variant="headingLg">
+                {summary.dueThisWeekOrders}
+              </Text>
+            </BlockStack>
+          </Card>
+          <Card>
+            <BlockStack gap="100">
+              <Text as="p" tone="subdued" variant="bodySm">
+                Overdue
+              </Text>
+              <Text as="p" variant="headingLg" tone={summary.overdueOrders > 0 ? "critical" : undefined}>
+                {summary.overdueOrders}
+              </Text>
+            </BlockStack>
+          </Card>
+          <Card>
+            <BlockStack gap="100">
+              <Text as="p" tone="subdued" variant="bodySm">
+                Workflow
+              </Text>
+              <Text as="p" variant="bodyMd">
+                {summary.draftOrders} draft / {summary.sentOrders} sent / {summary.partialOrders} partial
+              </Text>
+            </BlockStack>
+          </Card>
+        </InlineStack>
 
         <Card>
           <fetcher.Form method="POST">
