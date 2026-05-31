@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, useFetcher, useLoaderData } from "@remix-run/react";
+import { Form, Link, useFetcher, useLoaderData } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -20,6 +20,10 @@ import { TitleBar } from "@shopify/app-bridge-react";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import {
+  filterPurchaseOrders,
+  getPurchaseOrderFilterParams,
+} from "../services/purchase-order-exports.server";
+import {
   createPurchaseOrderFromQuantities,
   getPurchaseOrderPageData,
   receivePurchaseOrderPartially,
@@ -32,7 +36,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const store = await prisma.store.findUnique({ where: { shop: session.shop } });
   if (!store) throw new Error("Store not found");
 
-  return json(await getPurchaseOrderPageData(store.id));
+  const filters = getPurchaseOrderFilterParams(new URL(request.url));
+  const data = await getPurchaseOrderPageData(store.id);
+
+  return json({
+    ...data,
+    filteredPurchaseOrders: filterPurchaseOrders(data.purchaseOrders, filters),
+    filters,
+  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -126,16 +137,28 @@ function getReceivedQuantity(receipts: Array<{ quantity: number }>) {
 }
 
 export default function PurchaseOrders() {
-  const { suppliers, reorderCandidates, purchaseOrders } = useLoaderData<typeof loader>();
+  const { suppliers, reorderCandidates, purchaseOrders, filteredPurchaseOrders, filters } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const actionData = fetcher.data as { success?: boolean; error?: string; message?: string } | undefined;
   const [selectedSupplierId, setSelectedSupplierId] = useState(suppliers[0]?.id || "");
 
   const supplierOptions = suppliers.map((supplier) => ({ label: supplier.name, value: supplier.id }));
+  const statusOptions = [
+    { label: "All statuses", value: "all" },
+    { label: "Draft", value: "draft" },
+    { label: "Sent", value: "sent" },
+    { label: "Partially received", value: "partial" },
+    { label: "Received", value: "received" },
+    { label: "Cancelled", value: "cancelled" },
+  ];
   const selectedSupplier = suppliers.find((supplier) => supplier.id === selectedSupplierId);
   const selectedCandidates = reorderCandidates.filter((product) => product.supplierId === selectedSupplierId);
+  const exportSearch = new URLSearchParams();
+  if (filters.q) exportSearch.set("q", filters.q);
+  if (filters.status !== "all") exportSearch.set("status", filters.status);
+  const exportHref = `/app/purchase-orders/export${exportSearch.toString() ? `?${exportSearch.toString()}` : ""}`;
 
-  const purchaseOrderRows = purchaseOrders.map((order, index) => (
+  const purchaseOrderRows = filteredPurchaseOrders.map((order, index) => (
     <IndexTable.Row id={order.id} key={order.id} position={index}>
       <IndexTable.Cell>
         <Text variant="bodyMd" as="span" fontWeight="bold">
@@ -356,17 +379,36 @@ export default function PurchaseOrders() {
 
         <Card>
           <BlockStack gap="300">
-            <Text as="h2" variant="headingMd">
-              Recent purchase orders
-            </Text>
-            {purchaseOrders.length === 0 ? (
+            <InlineStack align="space-between" gap="300" blockAlign="end">
+              <Text as="h2" variant="headingMd">
+                Recent purchase orders
+              </Text>
+              <Button url={exportHref}>Export CSV</Button>
+            </InlineStack>
+            <Form method="GET">
+              <InlineStack gap="300" blockAlign="end">
+                <TextField
+                  label="Search"
+                  name="q"
+                  defaultValue={filters.q}
+                  placeholder="PO, supplier, product, or SKU"
+                  autoComplete="off"
+                />
+                <Select label="Status" name="status" options={statusOptions} defaultValue={filters.status} />
+                <Button submit>Apply filters</Button>
+                {(filters.q || filters.status !== "all") && <Button url="/app/purchase-orders">Clear</Button>}
+              </InlineStack>
+            </Form>
+            {filteredPurchaseOrders.length === 0 ? (
               <Text as="p" tone="subdued" variant="bodyMd">
-                No purchase orders yet. Create the first draft from current reorder candidates.
+                {filters.q || filters.status !== "all"
+                  ? "No purchase orders match the current filters."
+                  : "No purchase orders yet. Create the first draft from current reorder candidates."}
               </Text>
             ) : (
               <IndexTable
                 resourceName={{ singular: "purchase order", plural: "purchase orders" }}
-                itemCount={purchaseOrders.length}
+                itemCount={filteredPurchaseOrders.length}
                 selectable={false}
                 headings={[
                   { title: "PO" },

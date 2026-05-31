@@ -33,6 +33,9 @@
 - Open Print or email for a purchase order.
 - Use Print or Save PDF and confirm the supplier-ready document includes supplier, totals, lines, and remaining quantities.
 - Send supplier email only after SendGrid and supplier email are configured.
+- Search purchase orders by supplier, product, SKU, or PO number.
+- Filter purchase orders by draft, sent, partial, received, or cancelled status.
+- Export CSV and confirm the file includes ordered, received, and remaining quantities.
 - Cancel incorrect purchase orders before receiving.
 - Confirm dashboard metrics update.
 - Confirm alerts show for low-stock or out-of-stock products.
@@ -45,6 +48,7 @@
 - Receiving a purchase order records receipt history, updates Shopify inventory, and increments StockBridge local product stock.
 - PDF export uses the browser print dialog from the printable purchase order page.
 - Supplier PO email uses SendGrid and will show a configuration error if SendGrid is not enabled.
+- CSV export downloads the currently filtered purchase order list for customer handoff, supplier follow-up, and spreadsheet review.
 
 ## Rollback
 

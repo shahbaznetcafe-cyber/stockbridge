@@ -90,8 +90,10 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 9. Mark the purchase order as sent, receive partial or full inventory into Shopify, or cancel it as the supplier workflow progresses.
 10. Open the printable purchase order document and use browser print to save a PDF.
 11. Email the purchase order to the supplier if SendGrid and supplier email are configured.
-12. Review dashboard metrics and Inventory Alerts.
-13. Configure email or Slack notifications in Settings if the customer wants alerts.
+12. Search or filter purchase orders by status, supplier, product, SKU, or PO number.
+13. Export filtered purchase orders to CSV for supplier follow-up, customer reporting, or backup.
+14. Review dashboard metrics and Inventory Alerts.
+15. Configure email or Slack notifications in Settings if the customer wants alerts.
 
 ## Known Production Notes
 
@@ -104,6 +106,7 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 - Purchase order receiving supports partial receipts, records receipt history, uses Shopify inventory adjustments, and requires products to be synced after this release so inventory item/location identifiers are stored locally.
 - Purchase order PDF export uses the browser print flow from the printable purchase order page. Direct server-side PDF generation is not included yet.
 - Supplier purchase order email uses SendGrid when `SENDGRID_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and supplier email are configured.
+- Purchase order CSV export is available from the Purchase Orders page and respects the current search/status filters.
 
 ## Support
 
