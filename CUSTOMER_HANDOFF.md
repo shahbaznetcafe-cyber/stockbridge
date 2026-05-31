@@ -27,7 +27,9 @@
 - Open Purchase Orders.
 - Create a draft purchase order from reorder candidates.
 - Mark the purchase order as sent.
-- Use Receive inventory after goods arrive and confirm Shopify inventory increased.
+- Use Receive inventory after goods arrive. Partial receipts are allowed.
+- Confirm remaining quantity and receipt history update after each receipt.
+- Confirm Shopify inventory increased by the received quantity only.
 - Cancel incorrect purchase orders before receiving.
 - Confirm dashboard metrics update.
 - Confirm alerts show for low-stock or out-of-stock products.
@@ -37,7 +39,7 @@
 ## Purchase Order Notes
 
 - Product sync must be run after this release before receiving purchase orders, because receiving needs Shopify inventory item and location identifiers.
-- Receiving a purchase order updates Shopify inventory and increments StockBridge local product stock.
+- Receiving a purchase order records receipt history, updates Shopify inventory, and increments StockBridge local product stock.
 
 ## Rollback
 

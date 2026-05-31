@@ -118,6 +118,7 @@ model PurchaseOrder {
   store          Store    @relation(fields: [storeId], references: [id])
   supplier       Supplier @relation(fields: [supplierId], references: [id])
   lines          PurchaseOrderLine[]
+  receipts       PurchaseOrderReceipt[]
 
   @@unique([storeId, orderNumber])
   @@index([storeId, status])
@@ -136,8 +137,24 @@ model PurchaseOrderLine {
   createdAt       DateTime      @default(now())
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   product         Product       @relation(fields: [productId], references: [id])
+  receipts        PurchaseOrderReceipt[]
 
   @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+model PurchaseOrderReceipt {
+  id              String            @id @default(cuid())
+  purchaseOrderId String
+  lineId          String
+  productId       String
+  quantity        Int
+  createdAt       DateTime          @default(now())
+  purchaseOrder   PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  line            PurchaseOrderLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@index([lineId])
   @@index([productId])
 }
 

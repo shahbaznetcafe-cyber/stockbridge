@@ -1,6 +1,6 @@
 import prisma from "../db.server";
 
-export const PURCHASE_ORDER_STATUSES = ["draft", "sent", "received", "cancelled"] as const;
+export const PURCHASE_ORDER_STATUSES = ["draft", "sent", "partial", "received", "cancelled"] as const;
 
 export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number];
 
@@ -33,12 +33,23 @@ export type PurchaseOrderLineDraft = {
 };
 
 export type ReceivablePurchaseOrderLine = {
+  id?: string;
   titleSnapshot: string;
   quantity: number;
+  receipts?: Array<{ quantity: number }>;
   product: {
     shopifyInventoryItemId: string | null;
     shopifyLocationId: string | null;
   };
+};
+
+export type PartialReceiptDraft = {
+  lineId: string;
+  titleSnapshot: string;
+  quantity: number;
+  remainingQuantity: number;
+  inventoryItemId: string;
+  locationId: string;
 };
 
 export function getSuggestedOrderQuantity(product: ReorderProductInput) {
@@ -113,6 +124,42 @@ export function createInventoryAdjustmentChanges(lines: ReceivablePurchaseOrderL
   return { changes, missingProducts };
 }
 
+function getReceivedQuantity(line: { receipts?: Array<{ quantity: number }> }) {
+  return line.receipts?.reduce((total, receipt) => total + receipt.quantity, 0) ?? 0;
+}
+
+export function createPartialReceiptDrafts(
+  lines: Array<ReceivablePurchaseOrderLine & { id: string }>,
+  quantitiesByLineId: Map<string, number>,
+): PartialReceiptDraft[] {
+  return lines.flatMap((line) => {
+    const quantity = Math.floor(quantitiesByLineId.get(line.id) ?? 0);
+    if (quantity <= 0) return [];
+
+    const remainingQuantity = line.quantity - getReceivedQuantity(line);
+    if (quantity > remainingQuantity) {
+      throw new Error(`${line.titleSnapshot} only has ${remainingQuantity} units remaining.`);
+    }
+
+    const inventoryItemId = line.product.shopifyInventoryItemId;
+    const locationId = line.product.shopifyLocationId;
+    if (!inventoryItemId || !locationId) {
+      throw new Error(`Sync products before receiving. Missing Shopify inventory identifiers for: ${line.titleSnapshot}.`);
+    }
+
+    return [
+      {
+        lineId: line.id,
+        titleSnapshot: line.titleSnapshot,
+        quantity,
+        remainingQuantity,
+        inventoryItemId,
+        locationId,
+      },
+    ];
+  });
+}
+
 export async function getPurchaseOrderPageData(storeId: string) {
   const [suppliers, products, purchaseOrders] = await Promise.all([
     prisma.supplier.findMany({
@@ -143,14 +190,17 @@ export async function getPurchaseOrderPageData(storeId: string) {
         lines: {
           select: {
             id: true,
+            productId: true,
             titleSnapshot: true,
             skuSnapshot: true,
             quantity: true,
             unitCost: true,
             lineTotal: true,
+            receipts: { select: { quantity: true, createdAt: true }, orderBy: { createdAt: "desc" } },
           },
           orderBy: { createdAt: "asc" },
         },
+        receipts: { select: { id: true, quantity: true, createdAt: true, line: { select: { titleSnapshot: true } } }, orderBy: { createdAt: "desc" } },
       },
       take: 50,
     }),
@@ -232,6 +282,9 @@ export async function createPurchaseOrderFromQuantities({
 
 export async function updatePurchaseOrderStatus(storeId: string, purchaseOrderId: string, status: string) {
   const normalizedStatus = normalizePurchaseOrderStatus(status);
+  if (normalizedStatus === "received" || normalizedStatus === "partial") {
+    throw new Error("Use the receive inventory workflow to update receiving status.");
+  }
   const timestamp = new Date();
 
   const order = await prisma.purchaseOrder.findFirst({
@@ -246,13 +299,12 @@ export async function updatePurchaseOrderStatus(storeId: string, purchaseOrderId
     data: {
       status: normalizedStatus,
       sentAt: normalizedStatus === "sent" ? timestamp : undefined,
-      receivedAt: normalizedStatus === "received" ? timestamp : undefined,
       cancelledAt: normalizedStatus === "cancelled" ? timestamp : undefined,
     },
   });
 }
 
-async function applyShopifyInventoryReceipt(admin: any, purchaseOrderId: string, changes: Array<{ delta: number; inventoryItemId: string; locationId: string }>) {
+async function applyShopifyInventoryReceipt(admin: any, idempotencyKey: string, referenceDocumentUri: string, changes: Array<{ delta: number; inventoryItemId: string; locationId: string }>) {
   const query = `#graphql
     mutation receivePurchaseOrderInventory($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
       inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
@@ -273,10 +325,10 @@ async function applyShopifyInventoryReceipt(admin: any, purchaseOrderId: string,
       input: {
         reason: "restock",
         name: "available",
-        referenceDocumentUri: `stockbridge://purchase-orders/${purchaseOrderId}`,
+        referenceDocumentUri,
         changes,
       },
-      idempotencyKey: `stockbridge-po-receive-${purchaseOrderId}`,
+      idempotencyKey,
     },
   });
   const json = await response.json();
@@ -291,16 +343,21 @@ async function applyShopifyInventoryReceipt(admin: any, purchaseOrderId: string,
   }
 }
 
-export async function receivePurchaseOrder(storeId: string, purchaseOrderId: string, admin: any) {
+export async function receivePurchaseOrderPartially(
+  storeId: string,
+  purchaseOrderId: string,
+  quantitiesByLineId: Map<string, number>,
+  admin: any,
+) {
   const order = await prisma.purchaseOrder.findFirst({
     where: { id: purchaseOrderId, storeId },
     include: {
       lines: {
         include: {
+          receipts: { select: { quantity: true } },
           product: {
             select: {
               id: true,
-              inventoryQty: true,
               shopifyInventoryItemId: true,
               shopifyLocationId: true,
             },
@@ -311,32 +368,63 @@ export async function receivePurchaseOrder(storeId: string, purchaseOrderId: str
   });
 
   if (!order) throw new Error("Purchase order not found");
-  if (order.status === "received") throw new Error("Purchase order has already been received.");
+  if (order.status === "received") throw new Error("Purchase order has already been fully received.");
   if (order.status === "cancelled") throw new Error("Cancelled purchase orders cannot be received.");
 
-  const { changes, missingProducts } = createInventoryAdjustmentChanges(order.lines);
-  if (missingProducts.length > 0) {
-    throw new Error(`Sync products before receiving. Missing Shopify inventory identifiers for: ${missingProducts.join(", ")}.`);
-  }
+  const drafts = createPartialReceiptDrafts(order.lines, quantitiesByLineId);
+  if (drafts.length === 0) throw new Error("Enter at least one received quantity.");
 
-  await applyShopifyInventoryReceipt(admin, purchaseOrderId, changes);
+  const receiptGroupId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  await applyShopifyInventoryReceipt(
+    admin,
+    `stockbridge-po-partial-${purchaseOrderId}-${receiptGroupId}`,
+    `stockbridge://purchase-orders/${purchaseOrderId}/receipts/${receiptGroupId}`,
+    drafts.map((draft) => ({
+      delta: draft.quantity,
+      inventoryItemId: draft.inventoryItemId,
+      locationId: draft.locationId,
+    })),
+  );
 
+  const lineById = new Map(order.lines.map((line) => [line.id, line]));
+  const totalOrdered = order.lines.reduce((total, line) => total + line.quantity, 0);
+  const alreadyReceived = order.lines.reduce((total, line) => total + getReceivedQuantity(line), 0);
+  const newlyReceived = drafts.reduce((total, draft) => total + draft.quantity, 0);
+  const nextReceived = alreadyReceived + newlyReceived;
+  const isFullyReceived = nextReceived >= totalOrdered;
   const timestamp = new Date();
+
   await prisma.$transaction([
-    ...order.lines.map((line) =>
-      prisma.product.update({
+    ...drafts.map((draft) => {
+      const line = lineById.get(draft.lineId);
+      if (!line) throw new Error("Purchase order line not found");
+
+      return prisma.purchaseOrderReceipt.create({
+        data: {
+          purchaseOrderId,
+          lineId: draft.lineId,
+          productId: line.productId,
+          quantity: draft.quantity,
+        },
+      });
+    }),
+    ...drafts.map((draft) => {
+      const line = lineById.get(draft.lineId);
+      if (!line) throw new Error("Purchase order line not found");
+
+      return prisma.product.update({
         where: { id: line.productId },
-        data: { inventoryQty: { increment: line.quantity } },
-      }),
-    ),
+        data: { inventoryQty: { increment: draft.quantity } },
+      });
+    }),
     prisma.purchaseOrder.update({
       where: { id: purchaseOrderId },
       data: {
-        status: "received",
-        receivedAt: timestamp,
+        status: isFullyReceived ? "received" : "partial",
+        receivedAt: isFullyReceived ? timestamp : undefined,
       },
     }),
   ]);
 
-  return { receivedLines: order.lines.length, receivedUnits: order.lines.reduce((total, line) => total + line.quantity, 0) };
+  return { receivedLines: drafts.length, receivedUnits: newlyReceived, fullyReceived: isFullyReceived };
 }

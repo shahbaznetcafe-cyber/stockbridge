@@ -5,6 +5,7 @@ import {
   calculatePurchaseOrderTotal,
   createInventoryAdjustmentChanges,
   createPurchaseOrderLineDrafts,
+  createPartialReceiptDrafts,
   getSuggestedOrderQuantity,
   normalizePurchaseOrderStatus,
 } from "./purchase-orders.server";
@@ -152,5 +153,75 @@ describe("purchase order helpers", () => {
       changes: [],
       missingProducts: ["Aloe Drink", "Mint Tea"],
     });
+  });
+
+  test("creates partial receipt drafts from remaining quantities", () => {
+    const drafts = createPartialReceiptDrafts(
+      [
+        {
+          id: "line-1",
+          titleSnapshot: "Aloe Drink",
+          quantity: 10,
+          receipts: [{ quantity: 4 }],
+          product: {
+            shopifyInventoryItemId: "gid://shopify/InventoryItem/1",
+            shopifyLocationId: "gid://shopify/Location/1",
+          },
+        },
+        {
+          id: "line-2",
+          titleSnapshot: "Mint Tea",
+          quantity: 3,
+          receipts: [],
+          product: {
+            shopifyInventoryItemId: "gid://shopify/InventoryItem/2",
+            shopifyLocationId: "gid://shopify/Location/1",
+          },
+        },
+      ],
+      new Map([
+        ["line-1", 6],
+        ["line-2", 1],
+      ]),
+    );
+
+    expect(drafts).toEqual([
+      {
+        lineId: "line-1",
+        titleSnapshot: "Aloe Drink",
+        quantity: 6,
+        remainingQuantity: 6,
+        inventoryItemId: "gid://shopify/InventoryItem/1",
+        locationId: "gid://shopify/Location/1",
+      },
+      {
+        lineId: "line-2",
+        titleSnapshot: "Mint Tea",
+        quantity: 1,
+        remainingQuantity: 3,
+        inventoryItemId: "gid://shopify/InventoryItem/2",
+        locationId: "gid://shopify/Location/1",
+      },
+    ]);
+  });
+
+  test("rejects partial receipts above remaining quantity", () => {
+    expect(() =>
+      createPartialReceiptDrafts(
+        [
+          {
+            id: "line-1",
+            titleSnapshot: "Aloe Drink",
+            quantity: 10,
+            receipts: [{ quantity: 4 }],
+            product: {
+              shopifyInventoryItemId: "gid://shopify/InventoryItem/1",
+              shopifyLocationId: "gid://shopify/Location/1",
+            },
+          },
+        ],
+        new Map([["line-1", 7]]),
+      ),
+    ).toThrow("Aloe Drink only has 6 units remaining.");
   });
 });

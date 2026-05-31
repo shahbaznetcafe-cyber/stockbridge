@@ -22,7 +22,7 @@ import { authenticate } from "../shopify.server";
 import {
   createPurchaseOrderFromQuantities,
   getPurchaseOrderPageData,
-  receivePurchaseOrder,
+  receivePurchaseOrderPartially,
   updatePurchaseOrderStatus,
 } from "../services/purchase-orders.server";
 
@@ -66,16 +66,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ success: true, message: "Purchase order draft created." });
     }
 
+    if (intent === "receive") {
+      const lineIds = formData.getAll("lineId") as string[];
+      const quantities = formData.getAll("receivedQuantity") as string[];
+      const quantitiesByLineId = new Map<string, number>();
+
+      lineIds.forEach((lineId, index) => {
+        const quantity = Number.parseInt(quantities[index] || "0", 10);
+        quantitiesByLineId.set(lineId, Number.isFinite(quantity) ? quantity : 0);
+      });
+
+      const result = await receivePurchaseOrderPartially(
+        store.id,
+        formData.get("purchaseOrderId") as string,
+        quantitiesByLineId,
+        admin,
+      );
+
+      return json({
+        success: true,
+        message: result.fullyReceived
+          ? `Purchase order fully received. Added ${result.receivedUnits} units.`
+          : `Partial receipt saved. Added ${result.receivedUnits} units across ${result.receivedLines} lines.`,
+      });
+    }
+
     if (intent === "status") {
       const status = formData.get("status") as string;
-      if (status === "received") {
-        const result = await receivePurchaseOrder(store.id, formData.get("purchaseOrderId") as string, admin);
-        return json({
-          success: true,
-          message: `Purchase order received. Added ${result.receivedUnits} units across ${result.receivedLines} lines.`,
-        });
-      }
-
       await updatePurchaseOrderStatus(
         store.id,
         formData.get("purchaseOrderId") as string,
@@ -100,8 +117,12 @@ function formatDate(value: string | null) {
 }
 
 function statusBadge(status: string) {
-  const tone = status === "received" ? "success" : status === "cancelled" ? "critical" : status === "sent" ? "info" : "attention";
+  const tone = status === "received" ? "success" : status === "cancelled" ? "critical" : status === "sent" || status === "partial" ? "info" : "attention";
   return <Badge tone={tone}>{status}</Badge>;
+}
+
+function getReceivedQuantity(receipts: Array<{ quantity: number }>) {
+  return receipts.reduce((total, receipt) => total + receipt.quantity, 0);
 }
 
 export default function PurchaseOrders() {
@@ -135,16 +156,6 @@ export default function PurchaseOrders() {
               <input type="hidden" name="status" value="sent" />
               <Button variant="plain" submit>
                 Mark sent
-              </Button>
-            </fetcher.Form>
-          )}
-          {order.status !== "received" && order.status !== "cancelled" && (
-            <fetcher.Form method="POST">
-              <input type="hidden" name="intent" value="status" />
-              <input type="hidden" name="purchaseOrderId" value={order.id} />
-              <input type="hidden" name="status" value="received" />
-              <Button variant="plain" submit>
-                Receive inventory
               </Button>
             </fetcher.Form>
           )}
@@ -266,6 +277,82 @@ export default function PurchaseOrders() {
           </fetcher.Form>
         </Card>
 
+        {purchaseOrders.some((order) => order.status !== "received" && order.status !== "cancelled") && (
+          <Card>
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">
+                Receive inventory
+              </Text>
+              {purchaseOrders
+                .filter((order) => order.status !== "received" && order.status !== "cancelled")
+                .map((order) => (
+                  <fetcher.Form method="POST" key={order.id}>
+                    <input type="hidden" name="intent" value="receive" />
+                    <input type="hidden" name="purchaseOrderId" value={order.id} />
+                    <BlockStack gap="300">
+                      <InlineStack gap="300" blockAlign="center">
+                        <Text as="h3" variant="headingSm">
+                          {order.orderNumber}
+                        </Text>
+                        {statusBadge(order.status)}
+                        <Text as="span" variant="bodyMd" tone="subdued">
+                          {order.supplier.name}
+                        </Text>
+                      </InlineStack>
+                      <IndexTable
+                        resourceName={{ singular: "line", plural: "lines" }}
+                        itemCount={order.lines.length}
+                        selectable={false}
+                        headings={[
+                          { title: "Product" },
+                          { title: "Ordered" },
+                          { title: "Received" },
+                          { title: "Remaining" },
+                          { title: "Receive Now" },
+                        ]}
+                      >
+                        {order.lines.map((line, index) => {
+                          const receivedQuantity = getReceivedQuantity(line.receipts);
+                          const remainingQuantity = Math.max(line.quantity - receivedQuantity, 0);
+
+                          return (
+                            <IndexTable.Row id={line.id} key={line.id} position={index}>
+                              <IndexTable.Cell>
+                                <input type="hidden" name="lineId" value={line.id} />
+                                <Text as="span" variant="bodyMd" fontWeight="bold">
+                                  {line.titleSnapshot}
+                                </Text>
+                              </IndexTable.Cell>
+                              <IndexTable.Cell>{line.quantity}</IndexTable.Cell>
+                              <IndexTable.Cell>{receivedQuantity}</IndexTable.Cell>
+                              <IndexTable.Cell>{remainingQuantity}</IndexTable.Cell>
+                              <IndexTable.Cell>
+                                <TextField
+                                  label="Receive quantity"
+                                  labelHidden
+                                  name="receivedQuantity"
+                                  type="number"
+                                  min={0}
+                                  max={remainingQuantity}
+                                  defaultValue="0"
+                                  disabled={remainingQuantity === 0}
+                                  autoComplete="off"
+                                />
+                              </IndexTable.Cell>
+                            </IndexTable.Row>
+                          );
+                        })}
+                      </IndexTable>
+                      <Button variant="primary" submit loading={fetcher.state !== "idle"}>
+                        Receive selected quantities
+                      </Button>
+                    </BlockStack>
+                  </fetcher.Form>
+                ))}
+            </BlockStack>
+          </Card>
+        )}
+
         <Card>
           <BlockStack gap="300">
             <Text as="h2" variant="headingMd">
@@ -295,6 +382,38 @@ export default function PurchaseOrders() {
             )}
           </BlockStack>
         </Card>
+
+        {purchaseOrders.some((order) => order.receipts.length > 0) && (
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">
+                Receipt history
+              </Text>
+              <IndexTable
+                resourceName={{ singular: "receipt", plural: "receipts" }}
+                itemCount={purchaseOrders.reduce((total, order) => total + order.receipts.length, 0)}
+                selectable={false}
+                headings={[
+                  { title: "PO" },
+                  { title: "Product" },
+                  { title: "Quantity" },
+                  { title: "Received At" },
+                ]}
+              >
+                {purchaseOrders.flatMap((order) =>
+                  order.receipts.map((receipt, index) => (
+                    <IndexTable.Row id={receipt.id} key={receipt.id} position={index}>
+                      <IndexTable.Cell>{order.orderNumber}</IndexTable.Cell>
+                      <IndexTable.Cell>{receipt.line.titleSnapshot}</IndexTable.Cell>
+                      <IndexTable.Cell>{receipt.quantity}</IndexTable.Cell>
+                      <IndexTable.Cell>{formatDate(receipt.createdAt)}</IndexTable.Cell>
+                    </IndexTable.Row>
+                  )),
+                )}
+              </IndexTable>
+            </BlockStack>
+          </Card>
+        )}
       </BlockStack>
     </Page>
   );

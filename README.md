@@ -87,7 +87,7 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 6. Add suppliers and assign them to products.
 7. Set reorder points, safety stock, lead time, and reorder quantities.
 8. Create a draft purchase order from reorder candidates.
-9. Mark the purchase order as sent, receive inventory into Shopify, or cancel it as the supplier workflow progresses.
+9. Mark the purchase order as sent, receive partial or full inventory into Shopify, or cancel it as the supplier workflow progresses.
 10. Review dashboard metrics and Inventory Alerts.
 11. Configure email or Slack notifications in Settings if the customer wants alerts.
 
@@ -99,7 +99,7 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 - SendGrid email delivery runs only when `SENDGRID_API_KEY` is configured.
 - Render internal database URLs should only be used when web service and database are in the same region.
 - Shopify `read_orders` is used for recent order analytics. Full 90-day historical reporting needs Shopify approval for broader order history access.
-- Purchase order receiving uses Shopify inventory adjustments and requires products to be synced after this release so inventory item/location identifiers are stored locally.
+- Purchase order receiving supports partial receipts, records receipt history, uses Shopify inventory adjustments, and requires products to be synced after this release so inventory item/location identifiers are stored locally.
 
 ## Support
 
