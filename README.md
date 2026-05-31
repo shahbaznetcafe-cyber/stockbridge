@@ -97,6 +97,7 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 16. Configure email or Slack notifications in Settings if the customer wants alerts.
 17. Review Notification Readiness in Settings and resolve any delivery warnings.
 18. Open Diagnostics and resolve any critical setup blockers before handoff.
+19. Open Release Readiness and confirm there are no critical private-release blockers.
 
 ## Known Production Notes
 
@@ -114,6 +115,8 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 - Purchase order CSV export is available from the Purchase Orders page and respects the current search/status filters.
 - Purchase order summary cards show open value, open count, due-this-week count, overdue count, and workflow status counts.
 - Diagnostics is available at `/app/diagnostics` inside Shopify Admin and checks product sync, suppliers, supplier assignments, Shopify inventory identifiers, purchase orders, notifications, Redis, and unresolved alerts.
+- Release Readiness is available at `/app/release-readiness` inside Shopify Admin and summarizes private-release and App Store preparation blockers.
+- Public App Store preparation details are tracked in `APP_STORE_READINESS.md`.
 
 ## Support
 
