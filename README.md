@@ -1,6 +1,6 @@
 # StockBridge
 
-StockBridge is a Shopify embedded app for small merchants who need practical inventory control without a heavy ERP. It syncs Shopify products, tracks reorder points and supplier lead times, calculates sales velocity, and surfaces low-stock, out-of-stock, and dead-stock alerts.
+StockBridge is a Shopify embedded app for small merchants who need practical inventory control without a heavy ERP. It syncs Shopify products, tracks reorder points and supplier lead times, calculates sales velocity, creates draft purchase orders, and surfaces low-stock, out-of-stock, and dead-stock alerts.
 
 ## Current Production URL
 
@@ -86,8 +86,10 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 5. Sync products from the Products screen.
 6. Add suppliers and assign them to products.
 7. Set reorder points, safety stock, lead time, and reorder quantities.
-8. Review dashboard metrics and Inventory Alerts.
-9. Configure email or Slack notifications in Settings if the customer wants alerts.
+8. Create a draft purchase order from reorder candidates.
+9. Mark the purchase order as sent, received, or cancelled as the supplier workflow progresses.
+10. Review dashboard metrics and Inventory Alerts.
+11. Configure email or Slack notifications in Settings if the customer wants alerts.
 
 ## Known Production Notes
 
@@ -97,6 +99,7 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 - SendGrid email delivery runs only when `SENDGRID_API_KEY` is configured.
 - Render internal database URLs should only be used when web service and database are in the same region.
 - Shopify `read_orders` is used for recent order analytics. Full 90-day historical reporting needs Shopify approval for broader order history access.
+- Purchase Orders Phase 1 creates internal planning records only. Receiving a purchase order does not change Shopify inventory yet.
 
 ## Support
 

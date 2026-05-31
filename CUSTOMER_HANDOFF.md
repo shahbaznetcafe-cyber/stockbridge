@@ -24,10 +24,18 @@
 - Add at least one supplier.
 - Assign supplier to at least one product.
 - Set inventory cost, safety stock, lead time, reorder point, and reorder quantity.
+- Open Purchase Orders.
+- Create a draft purchase order from reorder candidates.
+- Mark the purchase order as sent, then received or cancelled.
 - Confirm dashboard metrics update.
 - Confirm alerts show for low-stock or out-of-stock products.
 - Resolve an alert and confirm success feedback.
 - Save notification settings with valid emails and Slack webhook if needed.
+
+## Current Purchase Order Limit
+
+- Phase 1 purchase orders are internal planning records.
+- Receiving a purchase order does not update Shopify inventory quantities yet.
 
 ## Rollback
 
