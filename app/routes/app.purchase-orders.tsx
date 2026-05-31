@@ -22,6 +22,7 @@ import { authenticate } from "../shopify.server";
 import {
   createPurchaseOrderFromQuantities,
   getPurchaseOrderPageData,
+  receivePurchaseOrder,
   updatePurchaseOrderStatus,
 } from "../services/purchase-orders.server";
 
@@ -35,7 +36,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -66,10 +67,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (intent === "status") {
+      const status = formData.get("status") as string;
+      if (status === "received") {
+        const result = await receivePurchaseOrder(store.id, formData.get("purchaseOrderId") as string, admin);
+        return json({
+          success: true,
+          message: `Purchase order received. Added ${result.receivedUnits} units across ${result.receivedLines} lines.`,
+        });
+      }
+
       await updatePurchaseOrderStatus(
         store.id,
         formData.get("purchaseOrderId") as string,
-        formData.get("status") as string,
+        status,
       );
       return json({ success: true, message: "Purchase order status updated." });
     }
@@ -134,7 +144,7 @@ export default function PurchaseOrders() {
               <input type="hidden" name="purchaseOrderId" value={order.id} />
               <input type="hidden" name="status" value="received" />
               <Button variant="plain" submit>
-                Mark received
+                Receive inventory
               </Button>
             </fetcher.Form>
           )}

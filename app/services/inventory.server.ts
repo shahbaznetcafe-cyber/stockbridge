@@ -42,6 +42,18 @@ export async function syncProducts(storeId: string, admin: any) {
                     sku
                     barcode
                     inventoryQuantity
+                    inventoryItem {
+                      id
+                      inventoryLevels(first: 1) {
+                        edges {
+                          node {
+                            location {
+                              id
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -74,6 +86,8 @@ export async function syncProducts(storeId: string, admin: any) {
         barcode: p.barcode?.value || variant?.barcode || null,
         price: variant?.price ? parseFloat(variant.price) : null,
         inventoryQty: p.totalInventory ?? variant?.inventoryQuantity ?? 0,
+        shopifyInventoryItemId: variant?.inventoryItem?.id || null,
+        shopifyLocationId: variant?.inventoryItem?.inventoryLevels?.edges?.[0]?.node?.location?.id || null,
         imageUrl: p.featuredImage?.url || null,
         inventoryCost: p.cost?.value ? parseFloat(p.cost.value) : null,
         leadTimeDays: p.leadTime?.value ? parseInt(p.leadTime.value) : 14,
@@ -99,6 +113,8 @@ export async function syncProducts(storeId: string, admin: any) {
         barcode: p.barcode,
         price: p.price,
         inventoryQty: p.inventoryQty,
+        shopifyInventoryItemId: p.shopifyInventoryItemId,
+        shopifyLocationId: p.shopifyLocationId,
         imageUrl: p.imageUrl,
         inventoryCost: p.inventoryCost,
         leadTimeDays: p.leadTimeDays,
@@ -117,6 +133,8 @@ export async function syncProducts(storeId: string, admin: any) {
         barcode: p.barcode,
         price: p.price,
         inventoryQty: p.inventoryQty,
+        shopifyInventoryItemId: p.shopifyInventoryItemId,
+        shopifyLocationId: p.shopifyLocationId,
         imageUrl: p.imageUrl,
         inventoryCost: p.inventoryCost,
         leadTimeDays: p.leadTimeDays,

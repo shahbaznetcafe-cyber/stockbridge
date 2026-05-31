@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   calculateLineTotal,
   calculatePurchaseOrderTotal,
+  createInventoryAdjustmentChanges,
   createPurchaseOrderLineDrafts,
   getSuggestedOrderQuantity,
   normalizePurchaseOrderStatus,
@@ -88,5 +89,68 @@ describe("purchase order helpers", () => {
         lineTotal: 10,
       },
     ]);
+  });
+
+  test("creates Shopify inventory adjustment changes for receivable lines", () => {
+    const result = createInventoryAdjustmentChanges([
+      {
+        titleSnapshot: "Aloe Drink",
+        quantity: 4,
+        product: {
+          shopifyInventoryItemId: "gid://shopify/InventoryItem/1",
+          shopifyLocationId: "gid://shopify/Location/1",
+        },
+      },
+      {
+        titleSnapshot: "Mint Tea",
+        quantity: 2,
+        product: {
+          shopifyInventoryItemId: "gid://shopify/InventoryItem/2",
+          shopifyLocationId: "gid://shopify/Location/1",
+        },
+      },
+    ]);
+
+    expect(result).toEqual({
+      changes: [
+        {
+          delta: 4,
+          inventoryItemId: "gid://shopify/InventoryItem/1",
+          locationId: "gid://shopify/Location/1",
+        },
+        {
+          delta: 2,
+          inventoryItemId: "gid://shopify/InventoryItem/2",
+          locationId: "gid://shopify/Location/1",
+        },
+      ],
+      missingProducts: [],
+    });
+  });
+
+  test("reports products missing Shopify inventory identifiers", () => {
+    const result = createInventoryAdjustmentChanges([
+      {
+        titleSnapshot: "Aloe Drink",
+        quantity: 4,
+        product: {
+          shopifyInventoryItemId: null,
+          shopifyLocationId: "gid://shopify/Location/1",
+        },
+      },
+      {
+        titleSnapshot: "Mint Tea",
+        quantity: 2,
+        product: {
+          shopifyInventoryItemId: "gid://shopify/InventoryItem/2",
+          shopifyLocationId: null,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({
+      changes: [],
+      missingProducts: ["Aloe Drink", "Mint Tea"],
+    });
   });
 });

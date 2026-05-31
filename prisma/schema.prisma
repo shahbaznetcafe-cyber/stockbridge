@@ -60,6 +60,8 @@ model Product {
   price           Float?
   compareAtPrice  Float?
   imageUrl        String?
+  shopifyInventoryItemId String?
+  shopifyLocationId      String?
   isTracking      Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

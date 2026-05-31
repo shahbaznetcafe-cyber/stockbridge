@@ -32,6 +32,15 @@ export type PurchaseOrderLineDraft = {
   lineTotal: number;
 };
 
+export type ReceivablePurchaseOrderLine = {
+  titleSnapshot: string;
+  quantity: number;
+  product: {
+    shopifyInventoryItemId: string | null;
+    shopifyLocationId: string | null;
+  };
+};
+
 export function getSuggestedOrderQuantity(product: ReorderProductInput) {
   const reorderPoint = product.reorderPoint ?? 10;
   if (product.inventoryQty > reorderPoint) return 0;
@@ -79,6 +88,29 @@ export function createPurchaseOrderLineDrafts(
       },
     ];
   });
+}
+
+export function createInventoryAdjustmentChanges(lines: ReceivablePurchaseOrderLine[]) {
+  const changes: Array<{ delta: number; inventoryItemId: string; locationId: string }> = [];
+  const missingProducts: string[] = [];
+
+  for (const line of lines) {
+    const inventoryItemId = line.product.shopifyInventoryItemId;
+    const locationId = line.product.shopifyLocationId;
+
+    if (!inventoryItemId || !locationId) {
+      missingProducts.push(line.titleSnapshot);
+      continue;
+    }
+
+    changes.push({
+      delta: line.quantity,
+      inventoryItemId,
+      locationId,
+    });
+  }
+
+  return { changes, missingProducts };
 }
 
 export async function getPurchaseOrderPageData(storeId: string) {
@@ -218,4 +250,93 @@ export async function updatePurchaseOrderStatus(storeId: string, purchaseOrderId
       cancelledAt: normalizedStatus === "cancelled" ? timestamp : undefined,
     },
   });
+}
+
+async function applyShopifyInventoryReceipt(admin: any, purchaseOrderId: string, changes: Array<{ delta: number; inventoryItemId: string; locationId: string }>) {
+  const query = `#graphql
+    mutation receivePurchaseOrderInventory($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+      inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+        userErrors {
+          field
+          message
+        }
+        inventoryAdjustmentGroup {
+          createdAt
+          reason
+          referenceDocumentUri
+        }
+      }
+    }`;
+
+  const response = await admin.graphql(query, {
+    variables: {
+      input: {
+        reason: "restock",
+        name: "available",
+        referenceDocumentUri: `stockbridge://purchase-orders/${purchaseOrderId}`,
+        changes,
+      },
+      idempotencyKey: `stockbridge-po-receive-${purchaseOrderId}`,
+    },
+  });
+  const json = await response.json();
+  const userErrors = json.data?.inventoryAdjustQuantities?.userErrors ?? [];
+
+  if (userErrors.length > 0) {
+    throw new Error(userErrors.map((error: { message: string }) => error.message).join("; "));
+  }
+
+  if (json.errors?.length) {
+    throw new Error(json.errors.map((error: { message: string }) => error.message).join("; "));
+  }
+}
+
+export async function receivePurchaseOrder(storeId: string, purchaseOrderId: string, admin: any) {
+  const order = await prisma.purchaseOrder.findFirst({
+    where: { id: purchaseOrderId, storeId },
+    include: {
+      lines: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              inventoryQty: true,
+              shopifyInventoryItemId: true,
+              shopifyLocationId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!order) throw new Error("Purchase order not found");
+  if (order.status === "received") throw new Error("Purchase order has already been received.");
+  if (order.status === "cancelled") throw new Error("Cancelled purchase orders cannot be received.");
+
+  const { changes, missingProducts } = createInventoryAdjustmentChanges(order.lines);
+  if (missingProducts.length > 0) {
+    throw new Error(`Sync products before receiving. Missing Shopify inventory identifiers for: ${missingProducts.join(", ")}.`);
+  }
+
+  await applyShopifyInventoryReceipt(admin, purchaseOrderId, changes);
+
+  const timestamp = new Date();
+  await prisma.$transaction([
+    ...order.lines.map((line) =>
+      prisma.product.update({
+        where: { id: line.productId },
+        data: { inventoryQty: { increment: line.quantity } },
+      }),
+    ),
+    prisma.purchaseOrder.update({
+      where: { id: purchaseOrderId },
+      data: {
+        status: "received",
+        receivedAt: timestamp,
+      },
+    }),
+  ]);
+
+  return { receivedLines: order.lines.length, receivedUnits: order.lines.reduce((total, line) => total + line.quantity, 0) };
 }

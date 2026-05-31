@@ -26,16 +26,18 @@
 - Set inventory cost, safety stock, lead time, reorder point, and reorder quantity.
 - Open Purchase Orders.
 - Create a draft purchase order from reorder candidates.
-- Mark the purchase order as sent, then received or cancelled.
+- Mark the purchase order as sent.
+- Use Receive inventory after goods arrive and confirm Shopify inventory increased.
+- Cancel incorrect purchase orders before receiving.
 - Confirm dashboard metrics update.
 - Confirm alerts show for low-stock or out-of-stock products.
 - Resolve an alert and confirm success feedback.
 - Save notification settings with valid emails and Slack webhook if needed.
 
-## Current Purchase Order Limit
+## Purchase Order Notes
 
-- Phase 1 purchase orders are internal planning records.
-- Receiving a purchase order does not update Shopify inventory quantities yet.
+- Product sync must be run after this release before receiving purchase orders, because receiving needs Shopify inventory item and location identifiers.
+- Receiving a purchase order updates Shopify inventory and increments StockBridge local product stock.
 
 ## Rollback
 
