@@ -30,6 +30,9 @@
 - Use Receive inventory after goods arrive. Partial receipts are allowed.
 - Confirm remaining quantity and receipt history update after each receipt.
 - Confirm Shopify inventory increased by the received quantity only.
+- Open Print or email for a purchase order.
+- Use Print or Save PDF and confirm the supplier-ready document includes supplier, totals, lines, and remaining quantities.
+- Send supplier email only after SendGrid and supplier email are configured.
 - Cancel incorrect purchase orders before receiving.
 - Confirm dashboard metrics update.
 - Confirm alerts show for low-stock or out-of-stock products.
@@ -40,6 +43,8 @@
 
 - Product sync must be run after this release before receiving purchase orders, because receiving needs Shopify inventory item and location identifiers.
 - Receiving a purchase order records receipt history, updates Shopify inventory, and increments StockBridge local product stock.
+- PDF export uses the browser print dialog from the printable purchase order page.
+- Supplier PO email uses SendGrid and will show a configuration error if SendGrid is not enabled.
 
 ## Rollback
 

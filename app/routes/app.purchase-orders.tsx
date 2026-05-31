@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useFetcher, useLoaderData } from "@remix-run/react";
+import { Link, useFetcher, useLoaderData } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -169,6 +169,7 @@ export default function PurchaseOrders() {
               </Button>
             </fetcher.Form>
           )}
+          <Link to={`/app/purchase-orders/${order.id}/print`}>Print or email</Link>
         </InlineStack>
       </IndexTable.Cell>
     </IndexTable.Row>
