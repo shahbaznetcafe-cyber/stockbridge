@@ -9,9 +9,11 @@
     "deploy": "shopify app deploy",
     "config:use": "shopify app config use",
     "env": "shopify app env",
-    "start": "node -e \"try { require('child_process').execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' }); } catch(e) { console.log('DB setup skipped:', e.message); }\" && remix-serve ./build/server/index.js",
-    "render-start": "npm run start",
-    "docker-start": "npm run start",
+    "test": "vitest run",
+    "start": "npm run start:prod",
+    "start:prod": "node scripts/render-start.mjs",
+    "render-start": "npm run start:prod",
+    "docker-start": "npm run start:prod",
     "setup": "prisma generate",
     "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
@@ -58,7 +60,8 @@
     "eslint-config-prettier": "^10.0.1",
     "prettier": "^3.2.4",
     "typescript": "^5.2.2",
-    "vite": "^6.2.2"
+    "vite": "^6.2.2",
+    "vitest": "^2.1.9"
   },
   "workspaces": {
     "packages": [

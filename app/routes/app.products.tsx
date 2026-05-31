@@ -2,11 +2,11 @@ import { useState } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
-import { Page, Card, Text, BlockStack, IndexTable, useIndexResourceState, Button, Modal, TextField, Select, InlineStack, Badge, Thumbnail } from "@shopify/polaris";
+import { Page, Card, Text, BlockStack, IndexTable, useIndexResourceState, Button, Modal, TextField, Select, InlineStack, Badge, Thumbnail, Banner } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { syncProducts } from "../services/inventory.server";
+import { syncOrderSalesMetrics, syncProducts } from "../services/inventory.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -19,8 +19,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     orderBy: { updatedAt: "desc" },
     include: { supplier: { select: { name: true } } },
   });
+  const suppliers = await prisma.supplier.findMany({
+    where: { storeId: store.id },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
-  return json({ products, storeId: store.id });
+  return json({ products, suppliers });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -33,7 +38,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "sync") {
     const count = await syncProducts(store.id, admin);
-    return json({ success: true, count });
+    const sales = await syncOrderSalesMetrics(store.id, admin);
+    return json({ success: true, message: `Synced ${count} products and ${sales.ordersLineItems} order line items.` });
   }
 
   if (intent === "update") {
@@ -43,7 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const safetyStock = parseInt(formData.get("safetyStock") as string) || 0;
     const reorderPoint = parseInt(formData.get("reorderPoint") as string) || null;
     const reorderQty = parseInt(formData.get("reorderQty") as string) || null;
-    const supplierId = formData.get("supplierId") as string || null;
+    const supplierId = ((formData.get("supplierId") as string) || "").trim() || null;
 
     await prisma.product.update({
       where: { id: productId },
@@ -57,8 +63,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Products() {
-  const { products, storeId } = useLoaderData<typeof loader>();
+  const { products, suppliers } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const actionData = fetcher.data as { success?: boolean; error?: string; message?: string } | undefined;
   const [editingProduct, setEditingProduct] = useState<any>(null);
 
   const resourceName = { singular: "product", plural: "products" };
@@ -72,15 +79,15 @@ export default function Products() {
           <Text variant="bodyMd" fontWeight="bold" as="span">{product.title}</Text>
         </InlineStack>
       </IndexTable.Cell>
-      <IndexTable.Cell>{product.sku || "—"}</IndexTable.Cell>
+      <IndexTable.Cell>{product.sku || "Not set"}</IndexTable.Cell>
       <IndexTable.Cell>
         <Badge tone={product.inventoryQty <= 0 ? "critical" : product.inventoryQty <= (product.reorderPoint ?? 10) ? "warning" : "success"}>
           {product.inventoryQty}
         </Badge>
       </IndexTable.Cell>
-      <IndexTable.Cell>${product.price?.toFixed(2) || "—"}</IndexTable.Cell>
-      <IndexTable.Cell>{product.supplier?.name || "—"}</IndexTable.Cell>
-      <IndexTable.Cell>{product.reorderPoint || "—"}</IndexTable.Cell>
+      <IndexTable.Cell>{product.price != null ? `$${product.price.toFixed(2)}` : "Not set"}</IndexTable.Cell>
+      <IndexTable.Cell>{product.supplier?.name || "Not assigned"}</IndexTable.Cell>
+      <IndexTable.Cell>{product.reorderPoint || "Default"}</IndexTable.Cell>
       <IndexTable.Cell>
         <Button variant="plain" onClick={() => setEditingProduct(product)}>Edit</Button>
       </IndexTable.Cell>
@@ -93,6 +100,17 @@ export default function Products() {
       primaryAction={<Button variant="primary" onClick={() => fetcher.submit({ intent: "sync" }, { method: "POST" })} loading={fetcher.state !== "idle"}>Sync Products</Button>}
     >
       <TitleBar title="Products" />
+      <BlockStack gap="400">
+      {actionData?.success && (
+        <Banner tone="success">
+          <Text as="p" variant="bodyMd">{actionData.message || "Product settings saved."}</Text>
+        </Banner>
+      )}
+      {actionData?.error && (
+        <Banner tone="critical">
+          <Text as="p" variant="bodyMd">{actionData.error}</Text>
+        </Banner>
+      )}
       <Card>
         <IndexTable
           resourceName={resourceName}
@@ -111,7 +129,15 @@ export default function Products() {
         >
           {rowMarkup}
         </IndexTable>
+        {products.length === 0 && (
+          <div style={{ padding: "var(--p-space-500)", textAlign: "center" }}>
+            <Text variant="bodyMd" as="p" tone="subdued">
+              No products synced yet. Use Sync Products after installing StockBridge in a Shopify store.
+            </Text>
+          </div>
+        )}
       </Card>
+      </BlockStack>
 
       <Modal
         open={!!editingProduct}
@@ -129,6 +155,15 @@ export default function Products() {
                 <TextField label="Safety Stock" name="safetyStock" type="number" defaultValue={editingProduct.safetyStock.toString()} autoComplete="off" />
                 <TextField label="Reorder Point" name="reorderPoint" type="number" defaultValue={editingProduct.reorderPoint?.toString() || ""} autoComplete="off" />
                 <TextField label="Reorder Quantity" name="reorderQty" type="number" defaultValue={editingProduct.reorderQty?.toString() || ""} autoComplete="off" />
+                <Select
+                  label="Supplier"
+                  name="supplierId"
+                  options={[
+                    { label: "No supplier", value: "" },
+                    ...suppliers.map((supplier) => ({ label: supplier.name, value: supplier.id })),
+                  ]}
+                  defaultValue={editingProduct.supplierId || ""}
+                />
                 <Button variant="primary" submit>Save</Button>
               </BlockStack>
             </fetcher.Form>

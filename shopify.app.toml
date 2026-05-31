@@ -1,7 +1,7 @@
 # StockBridge - Smart Inventory Management
 
 client_id = "64589fe1f19320f675bfbd317891fa23"
-app_url = "https://stockbridge.onrender.com"
+app_url = "https://stockbridge-ua7x.onrender.com"
 name = "StockBridge"
 embedded = true
 

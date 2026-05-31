@@ -37,11 +37,11 @@ export default function Dashboard() {
       <IndexTable.Cell>
         <Text variant="bodyMd" fontWeight="bold" as="span">{product.title}</Text>
       </IndexTable.Cell>
-      <IndexTable.Cell>{product.sku || "—"}</IndexTable.Cell>
+      <IndexTable.Cell>{product.sku || "Not set"}</IndexTable.Cell>
       <IndexTable.Cell>{product.inventoryQty}</IndexTable.Cell>
       <IndexTable.Cell>{product.totalSold30}</IndexTable.Cell>
       <IndexTable.Cell>{product.daysOfSupply.toFixed(1)} days</IndexTable.Cell>
-      <IndexTable.Cell>${product.price?.toFixed(2) || "—"}</IndexTable.Cell>
+      <IndexTable.Cell>{product.price != null ? `$${product.price.toFixed(2)}` : "Not set"}</IndexTable.Cell>
     </IndexTable.Row>
   ));
 

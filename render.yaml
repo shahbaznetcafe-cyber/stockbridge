@@ -1,17 +1,16 @@
 services:
   - type: web
     name: stockbridge
-    env: node
-    region: ohio
-    plan: starter
-    buildCommand: npm ci && npm run build
-    startCommand: npm run render-start
+    env: docker
+    region: singapore
+    plan: free
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /up
     envVars:
       - key: NODE_VERSION
         value: "22.12"
       - key: SHOPIFY_APP_URL
-        value: https://stockbridge.onrender.com
+        value: https://stockbridge-ua7x.onrender.com
       - key: SCOPES
         value: read_products,write_products,read_inventory,write_inventory,read_orders
       - key: SESSION_SECRET
@@ -32,6 +31,6 @@ services:
 databases:
   - name: stockbridge-db
     plan: starter
-    region: ohio
-    databaseName: stockbridge
+    region: singapore
+    databaseName: stockbridge_db
     ipAllowList: []

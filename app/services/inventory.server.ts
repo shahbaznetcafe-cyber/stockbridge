@@ -1,4 +1,10 @@
 import prisma from "../db.server";
+import {
+  buildSalesMetrics,
+  summarizeInventoryMetrics,
+  type SalesLineItem,
+} from "./inventory-calculations.server";
+import { checkDeadStock, checkLowStock } from "./alerts.server";
 
 export async function syncProducts(storeId: string, admin: any) {
   const products: any[] = [];
@@ -121,49 +127,27 @@ export async function syncProducts(storeId: string, admin: any) {
     });
   }
 
+  await checkLowStock(storeId);
+  await checkDeadStock(storeId);
+
   return products.length;
 }
 
 export async function getProductMetrics(storeId: string) {
-  const totalProducts = await prisma.product.count({
+  const products = await prisma.product.findMany({
     where: { storeId, status: "active" },
-  });
-
-  const lowStockProducts = await prisma.product.count({
-    where: {
-      storeId,
-      status: "active",
-      inventoryQty: { lte: prisma.product.fields.reorderPoint ?? 10 },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      inventoryQty: true,
+      inventoryCost: true,
+      reorderPoint: true,
+      imageUrl: true,
     },
   });
 
-  const outOfStock = await prisma.product.count({
-    where: { storeId, status: "active", inventoryQty: 0 },
-  });
-
-  const totalInventoryValue = await prisma.product.aggregate({
-    where: { storeId, status: "active", inventoryCost: { not: null } },
-    _sum: { inventoryCost: true },
-  });
-
-  const productsForReorder = await prisma.product.findMany({
-    where: {
-      storeId,
-      status: "active",
-      inventoryQty: { lte: prisma.product.fields.reorderPoint ?? 10 },
-    },
-    orderBy: { inventoryQty: "asc" },
-    take: 5,
-    select: { id: true, title: true, inventoryQty: true, reorderPoint: true, imageUrl: true },
-  });
-
-  return {
-    totalProducts,
-    lowStockProducts,
-    outOfStock,
-    totalInventoryValue: totalInventoryValue._sum.inventoryCost || 0,
-    productsForReorder,
-  };
+  return summarizeInventoryMetrics(products);
 }
 
 export async function getTopSellingProducts(storeId: string, days: number = 30) {
@@ -187,4 +171,141 @@ export async function getTopSellingProducts(storeId: string, days: number = 30) 
       daysOfSupply: true,
     },
   });
+}
+
+function parseMoney(value: unknown) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return parseFloat(value) || 0;
+  return 0;
+}
+
+function parseOrderLineItems(orderEdges: any[]) {
+  const lineItems: SalesLineItem[] = [];
+
+  for (const edge of orderEdges) {
+    const order = edge.node;
+    const soldAt = new Date(order.processedAt ?? order.createdAt);
+
+    for (const lineEdge of order.lineItems.edges ?? []) {
+      const line = lineEdge.node;
+      const productId = line.variant?.product?.id;
+      if (!productId) continue;
+
+      const price =
+        parseMoney(line.originalUnitPriceSet?.shopMoney?.amount) ||
+        parseMoney(line.discountedUnitPriceSet?.shopMoney?.amount);
+
+      lineItems.push({
+        productId,
+        quantity: line.quantity ?? 0,
+        price,
+        soldAt,
+      });
+    }
+  }
+
+  return lineItems;
+}
+
+export async function syncOrderSalesMetrics(storeId: string, admin: any) {
+  const lineItems: SalesLineItem[] = [];
+  let hasNextPage = true;
+  let cursor: string | null = null;
+  const since = new Date();
+  // Shopify read_orders normally exposes recent orders only. Keep the sync inside
+  // that private-app-safe window unless read_all_orders is approved later.
+  since.setDate(since.getDate() - 60);
+
+  while (hasNextPage) {
+    const query = `#graphql
+      query getRecentOrders($first: Int!, $after: String, $query: String!) {
+        orders(first: $first, after: $after, query: $query, sortKey: PROCESSED_AT, reverse: true) {
+          edges {
+            cursor
+            node {
+              id
+              createdAt
+              processedAt
+              lineItems(first: 100) {
+                edges {
+                  node {
+                    quantity
+                    originalUnitPriceSet {
+                      shopMoney {
+                        amount
+                      }
+                    }
+                    discountedUnitPriceSet {
+                      shopMoney {
+                        amount
+                      }
+                    }
+                    variant {
+                      product {
+                        id
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }`;
+
+    const response = await admin.graphql(query, {
+      variables: {
+        first: 100,
+        after: cursor,
+        query: `processed_at:>=${since.toISOString().slice(0, 10)} financial_status:paid`,
+      },
+    });
+    const json = await response.json();
+    const orders = json.data?.orders;
+    if (!orders) break;
+
+    lineItems.push(...parseOrderLineItems(orders.edges ?? []));
+    hasNextPage = Boolean(orders.pageInfo?.hasNextPage);
+    cursor = orders.pageInfo?.endCursor ?? null;
+  }
+
+  const metrics = buildSalesMetrics(lineItems);
+  const products = await prisma.product.findMany({
+    where: { storeId },
+    select: { id: true, inventoryQty: true },
+  });
+
+  for (const product of products) {
+    const productMetrics = metrics.get(product.id) ?? {
+      totalSold30: 0,
+      totalSold90: 0,
+      lastSoldAt: null,
+      salesVelocity: 0,
+      revenueAtRisk: 0,
+    };
+
+    await prisma.product.update({
+      where: { id: product.id },
+      data: {
+        totalSold30: productMetrics.totalSold30,
+        totalSold90: productMetrics.totalSold90,
+        lastSoldAt: productMetrics.lastSoldAt,
+        salesVelocity: productMetrics.salesVelocity,
+        daysOfSupply:
+          productMetrics.salesVelocity > 0
+            ? product.inventoryQty / productMetrics.salesVelocity
+            : 0,
+        revenueAtRisk: productMetrics.revenueAtRisk,
+      },
+    });
+  }
+
+  await checkLowStock(storeId);
+  await checkDeadStock(storeId);
+
+  return { ordersLineItems: lineItems.length, productsUpdated: products.length };
 }

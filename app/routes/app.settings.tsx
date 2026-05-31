@@ -5,6 +5,7 @@ import { Page, Card, Text, BlockStack, Button, TextField, Checkbox, Banner, Form
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { getNotificationSettings, updateNotificationSettings } from "../services/notifications.server";
+import { normalizeEmailRecipients, validateSlackWebhookUrl } from "../services/notification-validation.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -26,16 +27,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!store) return json({ error: "Store not found" }, { status: 404 });
 
   if (intent === "update_settings") {
+    const recipients = normalizeEmailRecipients(formData.get("emailRecipients") as string);
+    if ("error" in recipients) return json({ error: recipients.error }, { status: 400 });
+
+    const slackWebhook = validateSlackWebhookUrl(formData.get("slackWebhookUrl") as string);
+    if ("error" in slackWebhook) return json({ error: slackWebhook.error }, { status: 400 });
+
     await updateNotificationSettings(store.id, {
       emailEnabled: formData.get("emailEnabled") === "on",
-      emailRecipients: (formData.get("emailRecipients") as string) || null,
+      emailRecipients: recipients.value,
       slackEnabled: formData.get("slackEnabled") === "on",
-      slackWebhookUrl: (formData.get("slackWebhookUrl") as string) || null,
+      slackWebhookUrl: slackWebhook.value,
       dailyDigestEnabled: formData.get("dailyDigestEnabled") === "on",
       dailyDigestTime: (formData.get("dailyDigestTime") as string) || "08:00",
       alertTypes: (formData.get("alertTypes") as string) || "low_stock,out_of_stock,dead_stock",
     });
-    return json({ success: true });
+    return json({ success: true, message: "Notification settings saved." });
   }
 
   if (intent === "sync_products") {
@@ -48,11 +55,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Settings() {
   const { settings, plan } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const actionData = fetcher.data as { success?: boolean; error?: string; message?: string } | undefined;
 
   return (
     <Page fullWidth>
       <TitleBar title="Settings" />
       <BlockStack gap="500">
+        {actionData?.success && (
+          <Banner tone="success">
+            <Text variant="bodyMd" as="p">{actionData.message}</Text>
+          </Banner>
+        )}
+        {actionData?.error && (
+          <Banner tone="critical">
+            <Text variant="bodyMd" as="p">{actionData.error}</Text>
+          </Banner>
+        )}
         <Card>
           <Text variant="headingMd" as="h2">Plan & Billing</Text>
           <BlockStack gap="200">
@@ -61,7 +79,7 @@ export default function Settings() {
               {plan === "trial" ? "Your 14-day free trial is active." : "Thank you for being a subscriber."}
             </Text>
             <Button
-              url="https://stockbridge.onrender.com/app/billing"
+              url="https://stockbridge-ua7x.onrender.com/app/billing"
               external
             >
               {plan === "trial" ? "Choose a Plan" : "Manage Billing"}

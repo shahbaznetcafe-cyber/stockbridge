@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import {
-  Page, Card, Text, BlockStack, IndexTable, useIndexResourceState,
+  Page, Card, Text, BlockStack, IndexTable,
   Badge, Button, InlineStack, Thumbnail, Banner,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
@@ -21,7 +21,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  await authenticate.admin(request);
   const formData = await request.formData();
   const alertId = formData.get("alertId") as string;
 
@@ -35,6 +35,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Alerts() {
   const { alerts } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const actionData = fetcher.data as { success?: boolean; error?: string } | undefined;
 
   const severityBadge = (severity: string) => {
     const tones: Record<string, "critical" | "warning" | "info"> = {
@@ -45,16 +46,14 @@ export default function Alerts() {
     return <Badge tone={tones[severity] || "info"}>{severity}</Badge>;
   };
 
-  const typeIcon = (type: string) => {
+  const alertTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      low_stock: "📦 Low Stock",
-      out_of_stock: "❌ Out of Stock",
-      dead_stock: "💀 Dead Stock",
+      low_stock: "Low stock",
+      out_of_stock: "Out of stock",
+      dead_stock: "Dead stock",
     };
     return labels[type] || type;
   };
-
-  const resourceName = { singular: "alert", plural: "alerts" };
 
   const rowMarkup = alerts.map((alert, index) => (
     <IndexTable.Row id={alert.id} key={alert.id} position={index}>
@@ -64,7 +63,7 @@ export default function Alerts() {
           <Text variant="bodyMd" fontWeight="bold" as="span">{alert.product?.title || "Unknown Product"}</Text>
         </InlineStack>
       </IndexTable.Cell>
-      <IndexTable.Cell>{typeIcon(alert.type)}</IndexTable.Cell>
+      <IndexTable.Cell>{alertTypeLabel(alert.type)}</IndexTable.Cell>
       <IndexTable.Cell>{severityBadge(alert.severity)}</IndexTable.Cell>
       <IndexTable.Cell>{alert.message}</IndexTable.Cell>
       <IndexTable.Cell>
@@ -80,14 +79,24 @@ export default function Alerts() {
     <Page fullWidth>
       <TitleBar title="Inventory Alerts" />
       <BlockStack gap="400">
+        {actionData?.success && (
+          <Banner tone="success">
+            <Text variant="bodyMd" as="p">Alert resolved.</Text>
+          </Banner>
+        )}
+        {actionData?.error && (
+          <Banner tone="critical">
+            <Text variant="bodyMd" as="p">{actionData.error}</Text>
+          </Banner>
+        )}
         {alerts.length === 0 && (
           <Banner tone="success">
-            <Text variant="bodyMd" as="p">No unresolved alerts. Your inventory is in good shape!</Text>
+            <Text variant="bodyMd" as="p">No unresolved alerts. Your inventory is in good shape.</Text>
           </Banner>
         )}
         <Card>
           <IndexTable
-            resourceName={resourceName}
+            resourceName={{ singular: "alert", plural: "alerts" }}
             itemCount={alerts.length}
             headings={[
               { title: "Product" },

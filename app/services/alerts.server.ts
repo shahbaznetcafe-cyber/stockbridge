@@ -3,10 +3,6 @@ import prisma from "../db.server";
 const LOW_STOCK_THRESHOLD = 10;
 const DEAD_STOCK_DAYS = 90;
 
-function filterAlertsByType(alertTypes: string): string[] {
-  return alertTypes.split(",").map((t) => t.trim());
-}
-
 export async function checkLowStock(storeId: string) {
   const products = await prisma.product.findMany({
     where: {

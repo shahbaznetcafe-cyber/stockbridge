@@ -10,4 +10,14 @@ module.exports = {
   globals: {
     shopify: "readonly"
   },
+  overrides: [
+    {
+      files: ["**/*.test.ts", "**/*.test.tsx"],
+      rules: {
+        "jest/no-deprecated-functions": "off",
+        "jest/valid-expect": "off",
+        "jest/expect-expect": "off",
+      },
+    },
+  ],
 };

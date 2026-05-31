@@ -2,10 +2,11 @@ import { useState } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
-import { Page, Card, Text, BlockStack, Button, Modal, TextField, Banner, InlineStack, IndexTable, useIndexResourceState } from "@shopify/polaris";
+import { Page, Card, Text, BlockStack, Button, Modal, TextField, Banner, IndexTable, useIndexResourceState } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { getSupplierDeleteBlockMessage } from "../services/supplier-rules.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -48,8 +49,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "delete") {
     const supplierId = formData.get("supplierId") as string;
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: supplierId, storeId: store.id },
+      include: { _count: { select: { products: true } } },
+    });
+
+    if (!supplier) return json({ error: "Supplier not found" }, { status: 404 });
+
+    const blockMessage = getSupplierDeleteBlockMessage(supplier.name, supplier._count.products);
+    if (blockMessage) return json({ error: blockMessage }, { status: 409 });
+
     await prisma.supplier.delete({ where: { id: supplierId } });
-    return json({ success: true });
+    return json({ success: true, message: `${supplier.name} removed.` });
   }
 
   return json({ error: "Unknown intent" }, { status: 400 });
@@ -58,6 +69,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Suppliers() {
   const { suppliers } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const actionData = fetcher.data as { success?: boolean; error?: string; message?: string } | undefined;
   const [createOpen, setCreateOpen] = useState(false);
 
   const resourceName = { singular: "supplier", plural: "suppliers" };
@@ -66,8 +78,8 @@ export default function Suppliers() {
   const rowMarkup = suppliers.map((supplier, index) => (
     <IndexTable.Row id={supplier.id} key={supplier.id} selected={selectedResources.includes(supplier.id)} position={index}>
       <IndexTable.Cell><Text variant="bodyMd" fontWeight="bold" as="span">{supplier.name}</Text></IndexTable.Cell>
-      <IndexTable.Cell>{supplier.email || "—"}</IndexTable.Cell>
-      <IndexTable.Cell>{supplier.phone || "—"}</IndexTable.Cell>
+      <IndexTable.Cell>{supplier.email || "Not set"}</IndexTable.Cell>
+      <IndexTable.Cell>{supplier.phone || "Not set"}</IndexTable.Cell>
       <IndexTable.Cell>{supplier.leadTimeDays} days</IndexTable.Cell>
       <IndexTable.Cell>MOQ: {supplier.moq}</IndexTable.Cell>
       <IndexTable.Cell>{supplier._count.products}</IndexTable.Cell>
@@ -88,6 +100,16 @@ export default function Suppliers() {
     >
       <TitleBar title="Suppliers" />
       <BlockStack gap="400">
+        {actionData?.success && (
+          <Banner tone="success">
+            <Text variant="bodyMd" as="p">{actionData.message || "Supplier saved."}</Text>
+          </Banner>
+        )}
+        {actionData?.error && (
+          <Banner tone="critical">
+            <Text variant="bodyMd" as="p">{actionData.error}</Text>
+          </Banner>
+        )}
         {suppliers.length === 0 && (
           <Banner tone="info">
             <Text variant="bodyMd" as="p">No suppliers yet. Add your first supplier to start managing lead times and reorder points.</Text>
