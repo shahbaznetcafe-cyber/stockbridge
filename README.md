@@ -95,6 +95,7 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 14. Export filtered purchase orders to CSV for supplier follow-up, customer reporting, or backup.
 15. Review dashboard metrics and Inventory Alerts.
 16. Configure email or Slack notifications in Settings if the customer wants alerts.
+17. Open Diagnostics and resolve any critical setup blockers before handoff.
 
 ## Known Production Notes
 
@@ -109,6 +110,7 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 - Supplier purchase order email uses SendGrid when `SENDGRID_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and supplier email are configured.
 - Purchase order CSV export is available from the Purchase Orders page and respects the current search/status filters.
 - Purchase order summary cards show open value, open count, due-this-week count, overdue count, and workflow status counts.
+- Diagnostics is available at `/app/diagnostics` inside Shopify Admin and checks product sync, suppliers, supplier assignments, Shopify inventory identifiers, purchase orders, notifications, Redis, and unresolved alerts.
 
 ## Support
 

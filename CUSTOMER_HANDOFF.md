@@ -14,6 +14,7 @@
 - Confirm Shopify Partner app URL matches production URL.
 - Confirm Shopify redirect URLs match the deployed auth routes.
 - Confirm PostgreSQL and Redis credentials are saved in Render environment variables.
+- Open Diagnostics after install and resolve critical setup blockers before calling the customer test complete.
 
 ## Customer Test Flow
 
@@ -40,6 +41,7 @@
 - Cancel incorrect purchase orders before receiving.
 - Confirm dashboard metrics update.
 - Confirm alerts show for low-stock or out-of-stock products.
+- Confirm Diagnostics shows no critical blockers after sync, supplier setup, and purchase-order testing.
 - Resolve an alert and confirm success feedback.
 - Save notification settings with valid emails and Slack webhook if needed.
 
@@ -51,6 +53,7 @@
 - Supplier PO email uses SendGrid and will show a configuration error if SendGrid is not enabled.
 - CSV export downloads the currently filtered purchase order list for customer handoff, supplier follow-up, and spreadsheet review.
 - Summary cards are calculated from the latest 50 purchase orders shown on the Purchase Orders page.
+- Diagnostics is a setup readiness screen. Warnings can be acceptable for private release if the customer does not need that feature, but critical blockers should be resolved.
 
 ## Rollback
 

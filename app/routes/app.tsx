@@ -29,6 +29,7 @@ export default function App() {
         <Link to="/app/alerts">Alerts</Link>
         <Link to="/app/suppliers">Suppliers</Link>
         <Link to="/app/settings">Settings</Link>
+        <Link to="/app/diagnostics">Diagnostics</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>
