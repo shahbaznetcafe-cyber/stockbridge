@@ -1,9 +1,10 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
-import { Page, Card, Text, BlockStack, Button, TextField, Checkbox, Banner, FormLayout } from "@shopify/polaris";
+import { Page, Card, Text, BlockStack, Button, TextField, Checkbox, Banner, FormLayout, InlineStack, Badge } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import { buildNotificationReadiness, type NotificationReadinessStatus } from "../services/notification-content.server";
 import { getNotificationSettings, updateNotificationSettings } from "../services/notifications.server";
 import { normalizeEmailRecipients, validateSlackWebhookUrl } from "../services/notification-validation.server";
 import prisma from "../db.server";
@@ -15,7 +16,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!store) throw new Error("Store not found");
 
   const settings = await getNotificationSettings(store.id);
-  return json({ settings, plan: store.subscriptionStatus });
+  const notificationReadiness = buildNotificationReadiness({
+    settings,
+    env: {
+      sendgridConfigured: Boolean(process.env.SENDGRID_API_KEY),
+      notificationFromEmailConfigured: Boolean(process.env.NOTIFICATION_FROM_EMAIL),
+    },
+  });
+
+  return json({ settings, plan: store.subscriptionStatus, notificationReadiness });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -52,8 +61,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return json({ error: "Unknown intent" }, { status: 400 });
 };
 
+function readinessBadge(status: NotificationReadinessStatus) {
+  if (status === "success") return <Badge tone="success">ready</Badge>;
+  if (status === "warning") return <Badge tone="warning">needs review</Badge>;
+  return <Badge tone="info">disabled</Badge>;
+}
+
 export default function Settings() {
-  const { settings, plan } = useLoaderData<typeof loader>();
+  const { settings, plan, notificationReadiness } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const actionData = fetcher.data as { success?: boolean; error?: string; message?: string } | undefined;
 
@@ -84,6 +99,22 @@ export default function Settings() {
             >
               {plan === "trial" ? "Choose a Plan" : "Manage Billing"}
             </Button>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="300">
+            <Text variant="headingMd" as="h2">Notification Readiness</Text>
+            {notificationReadiness.map((check) => (
+              <InlineStack key={check.key} gap="300" align="space-between" blockAlign="start">
+                <BlockStack gap="100">
+                  <Text as="p" variant="bodyMd" fontWeight="bold">{check.label}</Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">{check.value}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{check.action}</Text>
+                </BlockStack>
+                {readinessBadge(check.status)}
+              </InlineStack>
+            ))}
           </BlockStack>
         </Card>
 

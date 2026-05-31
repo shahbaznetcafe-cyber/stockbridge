@@ -95,7 +95,8 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 14. Export filtered purchase orders to CSV for supplier follow-up, customer reporting, or backup.
 15. Review dashboard metrics and Inventory Alerts.
 16. Configure email or Slack notifications in Settings if the customer wants alerts.
-17. Open Diagnostics and resolve any critical setup blockers before handoff.
+17. Review Notification Readiness in Settings and resolve any delivery warnings.
+18. Open Diagnostics and resolve any critical setup blockers before handoff.
 
 ## Known Production Notes
 
@@ -103,6 +104,8 @@ Invoke-WebRequest https://stockbridge-ua7x.onrender.com/ -UseBasicParsing
 - App Store submission is a separate hardening phase.
 - Redis-backed queues run only when `REDIS_URL` is configured.
 - SendGrid email delivery runs only when `SENDGRID_API_KEY` is configured.
+- Notification readiness in Settings checks email recipients, SendGrid, sender email, daily digest, and Slack webhook setup.
+- Alert and digest email HTML escapes dynamic alert/store content before delivery.
 - Render internal database URLs should only be used when web service and database are in the same region.
 - Shopify `read_orders` is used for recent order analytics. Full 90-day historical reporting needs Shopify approval for broader order history access.
 - Purchase order receiving supports partial receipts, records receipt history, uses Shopify inventory adjustments, and requires products to be synced after this release so inventory item/location identifiers are stored locally.

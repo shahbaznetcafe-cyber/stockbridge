@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import sgMail from "@sendgrid/mail";
+import { buildAlertNotificationHtml, buildDailyDigestHtml } from "./notification-content.server";
 import { normalizeEmailRecipients, validateSlackWebhookUrl } from "./notification-validation.server";
 
 if (process.env.SENDGRID_API_KEY) {
@@ -36,7 +37,7 @@ export async function sendAlertNotification(storeId: string, alert: { type: stri
         to: emailRecipients.value.split(","),
         from: process.env.NOTIFICATION_FROM_EMAIL || "alerts@stockbridge.app",
         subject: `[StockBridge] ${alert.severity.toUpperCase()} ${alert.type.replace("_", " ").toUpperCase()}`,
-        html: `<h2>${alert.message}</h2><p>Store: ${store.shop}</p><hr/><p style="color:#666;">StockBridge Inventory Alert</p>`,
+        html: buildAlertNotificationHtml({ message: alert.message, storeShop: store.shop }),
       });
     } catch (error) {
       console.error("Failed to send alert email:", error);
@@ -100,35 +101,9 @@ export async function sendDailyDigest(storeId: string) {
     return;
   }
 
-  const stats = {
-    critical: alerts.filter((a) => a.severity === "critical").length,
-    warning: alerts.filter((a) => a.severity === "warning").length,
-    lowStock: alerts.filter((a) => a.type === "low_stock").length,
-    outOfStock: alerts.filter((a) => a.type === "out_of_stock").length,
-    deadStock: alerts.filter((a) => a.type === "dead_stock").length,
-  };
-
   const store = await prisma.store.findUnique({ where: { id: storeId } });
   const storeName = store?.shop || "Your Store";
-
-  let html = `<h1>Daily Inventory Digest - ${storeName}</h1>`;
-  html += "<p>Here's your inventory summary for today:</p>";
-  html += `<ul>
-    <li>Critical alerts: ${stats.critical}</li>
-    <li>Warnings: ${stats.warning}</li>
-    <li>Low stock: ${stats.lowStock}</li>
-    <li>Out of stock: ${stats.outOfStock}</li>
-    <li>Dead stock: ${stats.deadStock}</li>
-  </ul>`;
-  html += `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;">
-    <tr style="background:#f5f5f5;"><th>Type</th><th>Message</th><th>Severity</th></tr>`;
-
-  for (const alert of alerts) {
-    const color = alert.severity === "critical" ? "#ff4444" : "#ffaa00";
-    html += `<tr><td>${alert.type.replace("_", " ")}</td><td>${alert.message}</td><td style="color:${color};">${alert.severity}</td></tr>`;
-  }
-
-  html += "</table><hr/><p style=\"color:#999;\">StockBridge - Smart Inventory Management</p>";
+  const html = buildDailyDigestHtml({ storeName, alerts });
 
   if (!process.env.SENDGRID_API_KEY) {
     await prisma.jobLog.update({

@@ -44,6 +44,7 @@
 - Confirm Diagnostics shows no critical blockers after sync, supplier setup, and purchase-order testing.
 - Resolve an alert and confirm success feedback.
 - Save notification settings with valid emails and Slack webhook if needed.
+- Review Notification Readiness in Settings and resolve warning states for enabled delivery channels.
 
 ## Purchase Order Notes
 
@@ -54,6 +55,7 @@
 - CSV export downloads the currently filtered purchase order list for customer handoff, supplier follow-up, and spreadsheet review.
 - Summary cards are calculated from the latest 50 purchase orders shown on the Purchase Orders page.
 - Diagnostics is a setup readiness screen. Warnings can be acceptable for private release if the customer does not need that feature, but critical blockers should be resolved.
+- Notification readiness shows whether email alerts, daily digest, and Slack alerts are ready, disabled, or need configuration.
 
 ## Rollback
 
