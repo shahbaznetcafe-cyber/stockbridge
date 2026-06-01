@@ -8,12 +8,22 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { syncOrderSalesMetrics, syncProducts } from "../services/inventory.server";
 import { buildProductSyncMessage } from "../services/inventory-calculations.server";
+import {
+  buildMissingProductScopeMessage,
+  buildReauthorizeUrl,
+  getMissingScopes,
+  isProductsAccessDenied,
+  parseScopeList,
+  REQUIRED_PRODUCT_SYNC_SCOPES,
+} from "../services/shopify-access.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
   const store = await prisma.store.findUnique({ where: { shop: session.shop } });
   if (!store) throw new Error("Store not found");
+  const grantedScopes = parseScopeList(session.scope);
+  const missingProductScopes = getMissingScopes(grantedScopes, REQUIRED_PRODUCT_SYNC_SCOPES);
 
   const products = await prisma.product.findMany({
     where: { storeId: store.id },
@@ -26,7 +36,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     select: { id: true, name: true },
   });
 
-  return json({ products, suppliers });
+  return json({
+    products,
+    suppliers,
+    shop: session.shop,
+    productAccess: {
+      missingScopes: missingProductScopes,
+      message: missingProductScopes.length
+        ? buildMissingProductScopeMessage(session.shop, missingProductScopes)
+        : null,
+      reauthorizeUrl: buildReauthorizeUrl(session.shop),
+    },
+  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -38,6 +59,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!store) return json({ error: "Store not found" }, { status: 404 });
 
   if (intent === "sync") {
+    const grantedScopes = parseScopeList(session.scope);
+    const missingProductScopes = getMissingScopes(grantedScopes, REQUIRED_PRODUCT_SYNC_SCOPES);
+    if (missingProductScopes.length) {
+      return json(
+        {
+          error: buildMissingProductScopeMessage(session.shop, missingProductScopes),
+          reauthorizeUrl: buildReauthorizeUrl(session.shop),
+        },
+        { status: 403 },
+      );
+    }
+
     try {
       const count = await syncProducts(store.id, admin);
       let salesLineItems = 0;
@@ -61,6 +94,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     } catch (error) {
       console.error("Product sync failed:", error);
+      if (isProductsAccessDenied(error)) {
+        return json(
+          {
+            error: buildMissingProductScopeMessage(session.shop, REQUIRED_PRODUCT_SYNC_SCOPES),
+            reauthorizeUrl: buildReauthorizeUrl(session.shop),
+          },
+          { status: 403 },
+        );
+      }
+
       return json(
         { error: error instanceof Error ? error.message : "Product sync failed." },
         { status: 400 },
@@ -89,9 +132,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Products() {
-  const { products, suppliers } = useLoaderData<typeof loader>();
+  const { products, suppliers, productAccess } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
-  const actionData = fetcher.data as { success?: boolean; error?: string; message?: string } | undefined;
+  const actionData = fetcher.data as { success?: boolean; error?: string; message?: string; reauthorizeUrl?: string } | undefined;
   const [editingProduct, setEditingProduct] = useState<any>(null);
 
   const resourceName = { singular: "product", plural: "products" };
@@ -127,6 +170,16 @@ export default function Products() {
     >
       <TitleBar title="Products" />
       <BlockStack gap="400">
+      {productAccess.message && (
+        <Banner tone="critical">
+          <BlockStack gap="300">
+            <Text as="p" variant="bodyMd">{productAccess.message}</Text>
+            <InlineStack>
+              <Button url={productAccess.reauthorizeUrl}>Re-authorize app</Button>
+            </InlineStack>
+          </BlockStack>
+        </Banner>
+      )}
       {actionData?.success && (
         <Banner tone="success">
           <Text as="p" variant="bodyMd">{actionData.message || "Product settings saved."}</Text>
@@ -134,7 +187,14 @@ export default function Products() {
       )}
       {actionData?.error && (
         <Banner tone="critical">
-          <Text as="p" variant="bodyMd">{actionData.error}</Text>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodyMd">{actionData.error}</Text>
+            {actionData.reauthorizeUrl && (
+              <InlineStack>
+                <Button url={actionData.reauthorizeUrl}>Re-authorize app</Button>
+              </InlineStack>
+            )}
+          </BlockStack>
         </Banner>
       )}
       <Card>
