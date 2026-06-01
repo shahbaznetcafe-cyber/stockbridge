@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   buildSalesMetrics,
+  buildProductSyncMessage,
   getReorderPoint,
   summarizeInventoryMetrics,
 } from "./inventory-calculations.server";
@@ -49,5 +50,21 @@ describe("inventory calculations", () => {
       totalSold30: 0,
       totalSold90: 4,
     });
+  });
+
+  test("builds product sync message with non-blocking sales sync warning", () => {
+    expect(
+      buildProductSyncMessage({
+        productCount: 3,
+        salesLineItems: 8,
+      }),
+    ).toBe("Synced 3 products and 8 order line items.");
+
+    expect(
+      buildProductSyncMessage({
+        productCount: 3,
+        salesSyncWarning: "Access denied for orders.",
+      }),
+    ).toBe("Synced 3 products. Order sales metrics skipped: Access denied for orders.");
   });
 });

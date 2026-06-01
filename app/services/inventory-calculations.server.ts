@@ -87,3 +87,19 @@ export function buildSalesMetrics(lineItems: SalesLineItem[], now = new Date()) 
 
   return metrics;
 }
+
+export function buildProductSyncMessage({
+  productCount,
+  salesLineItems,
+  salesSyncWarning,
+}: {
+  productCount: number;
+  salesLineItems?: number;
+  salesSyncWarning?: string;
+}) {
+  if (salesSyncWarning) {
+    return `Synced ${productCount} products. Order sales metrics skipped: ${salesSyncWarning}`;
+  }
+
+  return `Synced ${productCount} products and ${salesLineItems ?? 0} order line items.`;
+}

@@ -7,6 +7,7 @@ import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { syncOrderSalesMetrics, syncProducts } from "../services/inventory.server";
+import { buildProductSyncMessage } from "../services/inventory-calculations.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -37,9 +38,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!store) return json({ error: "Store not found" }, { status: 404 });
 
   if (intent === "sync") {
-    const count = await syncProducts(store.id, admin);
-    const sales = await syncOrderSalesMetrics(store.id, admin);
-    return json({ success: true, message: `Synced ${count} products and ${sales.ordersLineItems} order line items.` });
+    try {
+      const count = await syncProducts(store.id, admin);
+      let salesLineItems = 0;
+      let salesSyncWarning: string | undefined;
+
+      try {
+        const sales = await syncOrderSalesMetrics(store.id, admin);
+        salesLineItems = sales.ordersLineItems;
+      } catch (error) {
+        console.error("Order sales metrics sync failed:", error);
+        salesSyncWarning = error instanceof Error ? error.message : "Order sales metrics unavailable.";
+      }
+
+      return json({
+        success: true,
+        message: buildProductSyncMessage({
+          productCount: count,
+          salesLineItems,
+          salesSyncWarning,
+        }),
+      });
+    } catch (error) {
+      console.error("Product sync failed:", error);
+      return json(
+        { error: error instanceof Error ? error.message : "Product sync failed." },
+        { status: 400 },
+      );
+    }
   }
 
   if (intent === "update") {
