@@ -1,5 +1,12 @@
 export const REQUIRED_PRODUCT_SYNC_SCOPES = ["read_products"];
-export const PRODUCT_SYNC_REAUTHORIZE_INTENT = "reauthorize_products";
+export const DEFAULT_APP_SCOPES = [
+  "read_products",
+  "write_products",
+  "read_inventory",
+  "write_inventory",
+  "read_orders",
+];
+export const REAUTHORIZE_TARGET = "_top";
 
 export function parseScopeList(scopes?: string | null) {
   return (scopes || "")
@@ -11,6 +18,11 @@ export function parseScopeList(scopes?: string | null) {
 export function getMissingScopes(grantedScopes: string[] | undefined, requiredScopes: string[]) {
   const granted = new Set(grantedScopes || []);
   return requiredScopes.filter((scope) => !granted.has(scope));
+}
+
+export function normalizeAppScopes(scopes?: string | null) {
+  const configured = parseScopeList(scopes);
+  return Array.from(new Set([...DEFAULT_APP_SCOPES, ...configured]));
 }
 
 export function resolveGrantedScopes(queriedScopes: string[] | undefined, sessionScope?: string | null) {

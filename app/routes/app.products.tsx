@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher } from "@remix-run/react";
 import { Page, Card, Text, BlockStack, IndexTable, useIndexResourceState, Button, Modal, TextField, Select, InlineStack, Badge, Thumbnail, Banner } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -13,7 +13,7 @@ import {
   buildReauthorizeUrl,
   getMissingScopes,
   isProductsAccessDenied,
-  PRODUCT_SYNC_REAUTHORIZE_INTENT,
+  REAUTHORIZE_TARGET,
   resolveGrantedScopes,
   REQUIRED_PRODUCT_SYNC_SCOPES,
 } from "../services/shopify-access";
@@ -64,11 +64,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const store = await prisma.store.findUnique({ where: { shop: session.shop } });
   if (!store) return json({ error: "Store not found" }, { status: 404 });
-
-  if (intent === PRODUCT_SYNC_REAUTHORIZE_INTENT) {
-    await scopes.request(REQUIRED_PRODUCT_SYNC_SCOPES);
-    return json({ success: true, message: "Product access is already approved." });
-  }
 
   if (intent === "sync") {
     let grantedScopes = resolveGrantedScopes([], session.scope);
@@ -193,10 +188,9 @@ export default function Products() {
         <Banner tone="critical">
           <BlockStack gap="300">
             <Text as="p" variant="bodyMd">{productAccess.message}</Text>
-            <Form method="post">
-              <input type="hidden" name="intent" value={PRODUCT_SYNC_REAUTHORIZE_INTENT} />
-              <Button submit>Re-authorize app</Button>
-            </Form>
+            <InlineStack>
+              <Button url={productAccess.reauthorizeUrl} target={REAUTHORIZE_TARGET}>Re-authorize app</Button>
+            </InlineStack>
           </BlockStack>
         </Banner>
       )}
@@ -210,10 +204,9 @@ export default function Products() {
           <BlockStack gap="300">
             <Text as="p" variant="bodyMd">{actionData.error}</Text>
             {actionData.reauthorizeUrl && (
-              <Form method="post">
-                <input type="hidden" name="intent" value={PRODUCT_SYNC_REAUTHORIZE_INTENT} />
-                <Button submit>Re-authorize app</Button>
-              </Form>
+              <InlineStack>
+                <Button url={actionData.reauthorizeUrl} target={REAUTHORIZE_TARGET}>Re-authorize app</Button>
+              </InlineStack>
             )}
           </BlockStack>
         </Banner>
