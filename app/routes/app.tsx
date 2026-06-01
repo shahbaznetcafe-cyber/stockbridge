@@ -31,6 +31,7 @@ export default function App() {
         <Link to="/app/settings">Settings</Link>
         <Link to="/app/diagnostics">Diagnostics</Link>
         <Link to="/app/release-readiness">Release Readiness</Link>
+        <Link to="/app/customer-acceptance">Customer Acceptance</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>
