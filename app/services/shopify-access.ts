@@ -1,5 +1,5 @@
 export const REQUIRED_PRODUCT_SYNC_SCOPES = ["read_products"];
-export const REAUTHORIZE_TARGET = "_top";
+export const PRODUCT_SYNC_REAUTHORIZE_INTENT = "reauthorize_products";
 
 export function parseScopeList(scopes?: string | null) {
   return (scopes || "")
@@ -11,6 +11,10 @@ export function parseScopeList(scopes?: string | null) {
 export function getMissingScopes(grantedScopes: string[] | undefined, requiredScopes: string[]) {
   const granted = new Set(grantedScopes || []);
   return requiredScopes.filter((scope) => !granted.has(scope));
+}
+
+export function resolveGrantedScopes(queriedScopes: string[] | undefined, sessionScope?: string | null) {
+  return queriedScopes && queriedScopes.length ? queriedScopes : parseScopeList(sessionScope);
 }
 
 export function isProductsAccessDenied(error: unknown) {

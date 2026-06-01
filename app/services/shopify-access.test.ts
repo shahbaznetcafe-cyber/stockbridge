@@ -6,8 +6,9 @@ import {
   getMissingScopes,
   isProductsAccessDenied,
   parseScopeList,
-  REAUTHORIZE_TARGET,
+  PRODUCT_SYNC_REAUTHORIZE_INTENT,
   REQUIRED_PRODUCT_SYNC_SCOPES,
+  resolveGrantedScopes,
 } from "./shopify-access";
 
 describe("Shopify access helpers", () => {
@@ -22,6 +23,8 @@ describe("Shopify access helpers", () => {
       "read_products",
     ]);
     expect(getMissingScopes(["read_products", "write_inventory"], REQUIRED_PRODUCT_SYNC_SCOPES)).toEqual([]);
+    expect(resolveGrantedScopes(["read_products"], "write_inventory")).toEqual(["read_products"]);
+    expect(resolveGrantedScopes([], "write_inventory")).toEqual(["write_inventory"]);
   });
 
   test("builds actionable product access recovery details", () => {
@@ -31,7 +34,7 @@ describe("Shopify access helpers", () => {
     expect(buildReauthorizeUrl("th991q-0w.myshopify.com")).toBe(
       "/auth/login?shop=th991q-0w.myshopify.com",
     );
-    expect(REAUTHORIZE_TARGET).toBe("_top");
+    expect(PRODUCT_SYNC_REAUTHORIZE_INTENT).toBe("reauthorize_products");
     expect(
       buildMissingProductScopeMessage("th991q-0w.myshopify.com", ["read_products"]),
     ).toContain("approve the requested product permissions");

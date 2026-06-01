@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { Form, useLoaderData, useFetcher } from "@remix-run/react";
 import { Page, Card, Text, BlockStack, IndexTable, useIndexResourceState, Button, Modal, TextField, Select, InlineStack, Badge, Thumbnail, Banner } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -13,17 +13,23 @@ import {
   buildReauthorizeUrl,
   getMissingScopes,
   isProductsAccessDenied,
-  parseScopeList,
-  REAUTHORIZE_TARGET,
+  PRODUCT_SYNC_REAUTHORIZE_INTENT,
+  resolveGrantedScopes,
   REQUIRED_PRODUCT_SYNC_SCOPES,
 } from "../services/shopify-access";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, scopes } = await authenticate.admin(request);
 
   const store = await prisma.store.findUnique({ where: { shop: session.shop } });
   if (!store) throw new Error("Store not found");
-  const grantedScopes = parseScopeList(session.scope);
+  let grantedScopes = resolveGrantedScopes([], session.scope);
+  try {
+    const scopeDetails = await scopes.query();
+    grantedScopes = resolveGrantedScopes(scopeDetails.granted, session.scope);
+  } catch (error) {
+    console.error("Scope query failed:", error);
+  }
   const missingProductScopes = getMissingScopes(grantedScopes, REQUIRED_PRODUCT_SYNC_SCOPES);
 
   const products = await prisma.product.findMany({
@@ -52,15 +58,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session, admin } = await authenticate.admin(request);
+  const { session, admin, scopes } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
 
   const store = await prisma.store.findUnique({ where: { shop: session.shop } });
   if (!store) return json({ error: "Store not found" }, { status: 404 });
 
+  if (intent === PRODUCT_SYNC_REAUTHORIZE_INTENT) {
+    await scopes.request(REQUIRED_PRODUCT_SYNC_SCOPES);
+    return json({ success: true, message: "Product access is already approved." });
+  }
+
   if (intent === "sync") {
-    const grantedScopes = parseScopeList(session.scope);
+    let grantedScopes = resolveGrantedScopes([], session.scope);
+    try {
+      const scopeDetails = await scopes.query();
+      grantedScopes = resolveGrantedScopes(scopeDetails.granted, session.scope);
+    } catch (error) {
+      console.error("Scope query failed before product sync:", error);
+    }
     const missingProductScopes = getMissingScopes(grantedScopes, REQUIRED_PRODUCT_SYNC_SCOPES);
     if (missingProductScopes.length) {
       return json(
@@ -176,9 +193,10 @@ export default function Products() {
         <Banner tone="critical">
           <BlockStack gap="300">
             <Text as="p" variant="bodyMd">{productAccess.message}</Text>
-            <InlineStack>
-              <Button url={productAccess.reauthorizeUrl} target={REAUTHORIZE_TARGET}>Re-authorize app</Button>
-            </InlineStack>
+            <Form method="post">
+              <input type="hidden" name="intent" value={PRODUCT_SYNC_REAUTHORIZE_INTENT} />
+              <Button submit>Re-authorize app</Button>
+            </Form>
           </BlockStack>
         </Banner>
       )}
@@ -192,9 +210,10 @@ export default function Products() {
           <BlockStack gap="300">
             <Text as="p" variant="bodyMd">{actionData.error}</Text>
             {actionData.reauthorizeUrl && (
-              <InlineStack>
-                <Button url={actionData.reauthorizeUrl} target={REAUTHORIZE_TARGET}>Re-authorize app</Button>
-              </InlineStack>
+              <Form method="post">
+                <input type="hidden" name="intent" value={PRODUCT_SYNC_REAUTHORIZE_INTENT} />
+                <Button submit>Re-authorize app</Button>
+              </Form>
             )}
           </BlockStack>
         </Banner>
