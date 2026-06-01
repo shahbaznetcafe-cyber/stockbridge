@@ -6,8 +6,9 @@ import {
   getMissingScopes,
   isProductsAccessDenied,
   parseScopeList,
+  REAUTHORIZE_TARGET,
   REQUIRED_PRODUCT_SYNC_SCOPES,
-} from "./shopify-access.server";
+} from "./shopify-access";
 
 describe("Shopify access helpers", () => {
   test("parses and compares approved scopes", () => {
@@ -30,6 +31,7 @@ describe("Shopify access helpers", () => {
     expect(buildReauthorizeUrl("th991q-0w.myshopify.com")).toBe(
       "/auth/login?shop=th991q-0w.myshopify.com",
     );
+    expect(REAUTHORIZE_TARGET).toBe("_top");
     expect(
       buildMissingProductScopeMessage("th991q-0w.myshopify.com", ["read_products"]),
     ).toContain("approve the requested product permissions");

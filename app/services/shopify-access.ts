@@ -1,4 +1,5 @@
 export const REQUIRED_PRODUCT_SYNC_SCOPES = ["read_products"];
+export const REAUTHORIZE_TARGET = "_top";
 
 export function parseScopeList(scopes?: string | null) {
   return (scopes || "")

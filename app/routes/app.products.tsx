@@ -14,8 +14,9 @@ import {
   getMissingScopes,
   isProductsAccessDenied,
   parseScopeList,
+  REAUTHORIZE_TARGET,
   REQUIRED_PRODUCT_SYNC_SCOPES,
-} from "../services/shopify-access.server";
+} from "../services/shopify-access";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -136,6 +137,7 @@ export default function Products() {
   const fetcher = useFetcher();
   const actionData = fetcher.data as { success?: boolean; error?: string; message?: string; reauthorizeUrl?: string } | undefined;
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const showProductAccessBanner = Boolean(productAccess.message && !actionData?.error);
 
   const resourceName = { singular: "product", plural: "products" };
   const { selectedResources, allResourcesSelected, handleSelectionChange } = useIndexResourceState(products);
@@ -170,12 +172,12 @@ export default function Products() {
     >
       <TitleBar title="Products" />
       <BlockStack gap="400">
-      {productAccess.message && (
+      {showProductAccessBanner && (
         <Banner tone="critical">
           <BlockStack gap="300">
             <Text as="p" variant="bodyMd">{productAccess.message}</Text>
             <InlineStack>
-              <Button url={productAccess.reauthorizeUrl}>Re-authorize app</Button>
+              <Button url={productAccess.reauthorizeUrl} target={REAUTHORIZE_TARGET}>Re-authorize app</Button>
             </InlineStack>
           </BlockStack>
         </Banner>
@@ -191,7 +193,7 @@ export default function Products() {
             <Text as="p" variant="bodyMd">{actionData.error}</Text>
             {actionData.reauthorizeUrl && (
               <InlineStack>
-                <Button url={actionData.reauthorizeUrl}>Re-authorize app</Button>
+                <Button url={actionData.reauthorizeUrl} target={REAUTHORIZE_TARGET}>Re-authorize app</Button>
               </InlineStack>
             )}
           </BlockStack>
